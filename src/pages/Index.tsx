@@ -16,8 +16,7 @@ import {
   CircleDollarSign,
   Shirt,
 } from "lucide-react";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
+import { fmtFechaMini, fmtPartidoSinHora, fmtHora } from "@/lib/dates";
 import { toast } from "sonner";
 import { Cell, Pie, PieChart } from "recharts";
 import { StatCard } from "@/components/ui/stat-card";
@@ -191,7 +190,7 @@ const Index = () => {
                   <PlayerAvatar nombre={mvpUltimaFecha.player.nombre} foto_url={mvpUltimaFecha.player.foto_url} size="md" />
                   <div className="min-w-0">
                     <p className="font-black truncate">{mvpUltimaFecha.player.apodo ?? mvpUltimaFecha.player.nombre}</p>
-                    <p className="text-xs text-muted-foreground">{format(new Date(mvpUltimaFecha.fecha), "d 'de' MMMM", { locale: es })}</p>
+                    <p className="text-xs text-muted-foreground">{fmtFechaMini(mvpUltimaFecha.fecha)}</p>
                   </div>
                 </div>
               ) : (
@@ -252,8 +251,8 @@ const Index = () => {
           </div>
           {proximoPartido ? (
             <div className="space-y-3">
-              <p className="text-xl font-black">{format(new Date(proximoPartido.fecha), "EEEE d 'de' MMMM", { locale: es })}</p>
-              <p className="text-sm text-muted-foreground">{format(new Date(proximoPartido.fecha), "HH:mm 'hs'")}</p>
+              <p className="text-xl font-black">{fmtPartidoSinHora(proximoPartido.fecha)}</p>
+              <p className="text-sm text-muted-foreground">{fmtHora(proximoPartido.fecha)} hs</p>
                 <Button asChild className="w-full mt-2">
                   <Link to={isAdmin ? `/admin/partidos/${proximoPartido.id}/stats` : `/partidos/${proximoPartido.id}`}>
                     {isAdmin ? "Cargar stats" : "Ver detalle"} <ArrowRight className="h-4 w-4 ml-1" />

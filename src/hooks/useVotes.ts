@@ -46,19 +46,15 @@ export const useCastVotes = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ matchId, voterId, mvpVotedId, goalVotedId }: CastVotesInput) => {
-      // Borrar votos previos de este votante (permite rectificar antes del cierre)
-      const { error: delErr } = await supabase
-        .from("votes")
-        .delete()
-        .eq("match_id", matchId)
-        .eq("voter_player_id", voterId);
-      if (delErr) throw delErr;
-
       const rows = [
         { match_id: matchId, voter_player_id: voterId, voted_player_id: mvpVotedId, type: "mvp" as VoteType },
         { match_id: matchId, voter_player_id: voterId, voted_player_id: goalVotedId, type: "goal" as VoteType },
       ];
-      const { error } = await supabase.from("votes").insert(rows);
+      // UPSERT sobre la constraint única (match_id, voter_player_id, type)
+      // evita pérdida de datos si el insert falla a mitad
+      const { error } = await supabase
+        .from("votes")
+        .upsert(rows, { onConflict: "match_id,voter_player_id,type" });
       if (error) throw error;
     },
     onSuccess: (_, vars) => {

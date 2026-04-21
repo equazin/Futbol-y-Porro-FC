@@ -1,4 +1,4 @@
-import { Trophy, Goal, Star, Award, Heart } from "lucide-react";
+import { Trophy, Goal, Star, Award, Heart, Share2, ExternalLink } from "lucide-react";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { useRanking } from "@/hooks/useRanking";
 import { useChemistry } from "@/hooks/useChemistry";
@@ -7,9 +7,23 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatARS, FONDO } from "@/lib/scoring";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 const Ranking = () => {
+  const navigate = useNavigate();
   const { data: ranking = [], isLoading, isError, error, refetch, fetchStatus } = useRanking();
+
+  const onShare = async () => {
+    const publicUrl = `${window.location.origin}${window.location.pathname}#/ranking-publico`;
+    if (navigator.share) {
+      try { await navigator.share({ title: "Ranking Fútbol y Porro FC", url: publicUrl }); }
+      catch { /* canceled */ }
+    } else {
+      await navigator.clipboard.writeText(publicUrl);
+      toast.success("Link copiado");
+    }
+  };
   const { data: chemistry = [] } = useChemistry(2);
   const { data: players = [] } = usePlayers();
   const playerById = (id: string) => players.find((p) => p.id === id);
@@ -41,7 +55,7 @@ const Ranking = () => {
     return (
       <div className="space-y-6">
         <h1 className="text-2xl md:text-3xl font-black">Ranking</h1>
-        <EmptyState icon={Trophy} title="Aun sin datos" description="Carga partidos cerrados para ver el ranking." />
+        <EmptyState icon={Trophy} title="Todavía no hay datos" description="Cerrá partidos para ver el ranking actualizado." />
       </div>
     );
   }
@@ -51,14 +65,24 @@ const Ranking = () => {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl md:text-3xl font-black flex items-center gap-2">
-          <Trophy className="h-6 w-6 text-mvp" />
-          Ranking del torneo
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Puntos: PJ x30 + PG x20 + MVP x50 + Gol fecha x20 + Bonus
-        </p>
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-black flex items-center gap-2">
+            <Trophy className="h-6 w-6 text-mvp" />
+            Ranking del torneo
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Puntos: PJ x30 + PG x20 + MVP x50 + Gol fecha x20 + Bonus
+          </p>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          <Button variant="outline" size="sm" onClick={() => navigate("/ranking-publico")} className="gap-1.5">
+            <ExternalLink className="h-3.5 w-3.5" /> Ver público
+          </Button>
+          <Button variant="outline" size="sm" onClick={onShare} className="gap-1.5">
+            <Share2 className="h-3.5 w-3.5" /> Compartir
+          </Button>
+        </div>
       </header>
 
       <div className="grid grid-cols-3 gap-3">

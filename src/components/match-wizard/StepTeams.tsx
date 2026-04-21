@@ -1,4 +1,4 @@
-import { Bot, RefreshCcw, Shuffle, Sparkles } from "lucide-react";
+import { AlertTriangle, Bot, RefreshCcw, Shuffle, Sparkles } from "lucide-react";
 import type { Player } from "@/hooks/usePlayers";
 import { Button } from "@/components/ui/button";
 import { TeamBuilder } from "./TeamBuilder";
@@ -16,12 +16,20 @@ interface StepTeamsProps {
   loadingReuse: boolean;
 }
 
+const IMBALANCE_THRESHOLD = 15; // % de diferencia que dispara el warning
+
 const diffLabel = (avgA: number, avgB: number) => {
   if (!avgA || !avgB) return "Sin datos suficientes";
   const stronger = avgA >= avgB ? "Equipo A" : "Equipo B";
   const diff = Math.abs(avgA - avgB);
   const pct = Math.min(100, (diff / Math.max(avgA, avgB)) * 100);
-  return `${stronger} +${pct.toFixed(1)}% mas fuerte`;
+  return `${stronger} +${pct.toFixed(1)}% más fuerte`;
+};
+
+const isImbalanced = (avgA: number, avgB: number): boolean => {
+  if (!avgA || !avgB) return false;
+  const pct = (Math.abs(avgA - avgB) / Math.max(avgA, avgB)) * 100;
+  return pct > IMBALANCE_THRESHOLD;
 };
 
 export const StepTeams = ({
@@ -46,6 +54,7 @@ export const StepTeams = ({
   const teamBElo = avgElo(teamB.map((id) => Number((playersById[id] as any)?.elo ?? 1000)));
   const totalAssigned = teamA.length + teamB.length;
   const isReady = teamA.length > 0 && teamB.length > 0 && totalAssigned === selectedPlayers.length;
+  const imbalanced = isReady && isImbalanced(teamAElo, teamBElo);
 
   return (
     <section className="space-y-4">
@@ -90,15 +99,31 @@ export const StepTeams = ({
         </div>
       </div>
 
+      {imbalanced && (
+        <div className="rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-3 py-2.5 flex items-start gap-2 text-xs text-yellow-600">
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold">Equipos desbalanceados</p>
+            <p className="text-yellow-600/80">La diferencia de ELO supera el {IMBALANCE_THRESHOLD}%. Usá "Auto-armar balanceado" o ajustá manualmente.</p>
+          </div>
+        </div>
+      )}
+
       <div
         className={cn(
           "rounded-xl border px-3 py-2 text-xs",
-          isReady ? "border-primary/40 bg-primary/10 text-primary" : "border-amber-500/40 bg-amber-500/10 text-amber-200",
+          isReady && !imbalanced
+            ? "border-primary/40 bg-primary/10 text-primary"
+            : isReady && imbalanced
+            ? "border-yellow-500/40 bg-yellow-500/10 text-yellow-600"
+            : "border-amber-500/40 bg-amber-500/10 text-amber-200",
         )}
       >
         {isReady
-          ? "Equipos listos. Puedes continuar al paso de confirmacion."
-          : "Valida que ambos equipos tengan al menos 1 jugador y que todos los seleccionados esten asignados."}
+          ? imbalanced
+            ? "Podés continuar pero los equipos están desbalanceados."
+            : "Equipos listos. Podés continuar al paso de confirmación."
+          : "Asegurate de que ambos equipos tengan jugadores y todos estén asignados."}
       </div>
     </section>
   );

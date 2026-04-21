@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Goal, Lock, Save, Sparkles, Star, Vote } from "lucide-react";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
+import { ArrowLeft, AlertTriangle, Goal, Lock, Save, Sparkles, Star, Vote, Info } from "lucide-react";
+import { fmtPartidoLargo } from "@/lib/dates";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +28,9 @@ import {
 } from "@/hooks/useMatches";
 import { usePlayers } from "@/hooks/usePlayers";
 import { useVotes, tallyVotes } from "@/hooks/useVotes";
-import { FONDO } from "@/lib/scoring";
+import { FONDO, CALIFICACION_CRITERIOS } from "@/lib/scoring";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Info } from "lucide-react";
 
 interface Row {
   player_id: string;
@@ -92,6 +93,17 @@ const MatchStats = () => {
   const goalTally = useMemo(() => tallyVotes(votes, "goal"), [votes]);
   const totalVoters = useMemo(() => new Set(votes.map((v) => v.voter_player_id)).size, [votes]);
 
+  const closeBlockers = useMemo(() => {
+    const issues: string[] = [];
+    if (teamA.length === 0 || teamB.length === 0)
+      issues.push("Ambos equipos deben tener al menos un jugador presente.");
+    if (scoreA === 0 && scoreB === 0 && presentes.length > 0)
+      issues.push("El resultado es 0-0. Guardá el marcador antes de cerrar.");
+    if (mvpId === "none" && mvpTally.length === 0)
+      issues.push("No hay MVP asignado ni votos de MVP.");
+    return issues;
+  }, [teamA, teamB, scoreA, scoreB, presentes, mvpId, mvpTally]);
+
   const playerById = (playerId: string) => players.find((p) => p.id === playerId);
 
   const updateRow = (playerId: string, patch: Partial<Row>) =>
@@ -114,7 +126,14 @@ const MatchStats = () => {
         players: payload,
         aportePorJugador: FONDO.APORTE_POR_PARTIDO,
       });
-      toast.success("Stats guardadas");
+      // Transición automática pendiente → jugado al cargar stats
+      if (estado === "pendiente" && payload.length > 0) {
+        await updateMut.mutateAsync({ id, estado: "jugado" as any });
+        setEstado("jugado");
+        toast.success("Stats guardadas · Partido marcado como jugado");
+      } else {
+        toast.success("Stats guardadas");
+      }
     } catch (e: any) {
       toast.error(e.message ?? "No se pudieron guardar las stats.");
     }
@@ -203,7 +222,19 @@ const MatchStats = () => {
                   />
                 </div>
                 <div>
-                  <Label className="text-[10px] uppercase text-muted-foreground">Calif.</Label>
+                  <Label className="text-[10px] uppercase text-muted-foreground flex items-center gap-1">
+                    Calif.
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-[220px] text-xs space-y-1">
+                        {CALIFICACION_CRITERIOS.map((c) => (
+                          <p key={c.rango}><span className="font-bold">{c.rango}</span> — {c.label}</p>
+                        ))}
+                      </TooltipContent>
+                    </Tooltip>
+                  </Label>
                   <Input
                     type="number"
                     min={1}
@@ -233,7 +264,7 @@ const MatchStats = () => {
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-primary font-bold">Carga de stats</p>
             <h1 className="text-xl md:text-2xl font-black capitalize">
-              {format(new Date(match.fecha), "EEEE d 'de' MMMM, HH:mm 'hs'", { locale: es })}
+              {fmtPartidoLargo(match.fecha)}
             </h1>
             <p className="text-sm text-muted-foreground">
               Equipos definidos: {teamA.length} vs {teamB.length} · Carga rapida de goles, asistencias y calificacion.
@@ -396,14 +427,24 @@ const MatchStats = () => {
           </div>
         )}
 
+        {closeBlockers.length > 0 && estado !== "cerrado" && (
+          <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 space-y-1">
+            <p className="text-xs font-bold text-yellow-600 flex items-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5" /> Para cerrar el partido primero:
+            </p>
+            {closeBlockers.map((b) => (
+              <p key={b} className="text-xs text-yellow-600 pl-5">· {b}</p>
+            ))}
+          </div>
+        )}
         <Button
           onClick={() => setConfirmClose(true)}
-          disabled={estado === "cerrado" || closeMut.isPending}
+          disabled={estado === "cerrado" || closeMut.isPending || closeBlockers.length > 0}
           variant="outline"
-          className="w-full border-mvp/40 hover:bg-mvp/10"
+          className="w-full border-mvp/40 hover:bg-mvp/10 disabled:opacity-50"
         >
           <Lock className="h-4 w-4 mr-2" />
-          {estado === "cerrado" ? "Votacion cerrada" : "Cerrar votacion y aplicar ganadores"}
+          {estado === "cerrado" ? "Partido cerrado" : "Cerrar votación y aplicar ganadores"}
         </Button>
       </section>
 

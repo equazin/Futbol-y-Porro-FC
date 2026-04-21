@@ -146,7 +146,7 @@ const Jugadores = ({ readOnly = false }: { readOnly?: boolean }) => {
         <EmptyState
           icon={Users}
           title="Sin jugadores todavia"
-          description={readOnly ? "No hay jugadores cargados." : "Empieza agregando los integrantes del grupo."}
+          description={readOnly ? "Todavía no hay jugadores en el plantel." : "Agregá los integrantes del grupo para empezar."}
           action={readOnly ? undefined : { label: "Agregar primer jugador", onClick: openNew }}
         />
       ) : (

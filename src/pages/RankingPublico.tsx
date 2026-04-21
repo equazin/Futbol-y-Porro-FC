@@ -48,7 +48,7 @@ const RankingPublico = () => {
         </header>
 
         {ranking.length === 0 ? (
-          <EmptyState icon={Trophy} title="Aún sin datos" description="Cargá partidos cerrados para ver el ranking." />
+          <EmptyState icon={Trophy} title="Todavía no hay datos" description="Cerrá partidos para ver el ranking actualizado." />
         ) : (
           <>
             {/* Podio */}
@@ -151,7 +151,7 @@ const RankingPublico = () => {
             </div>
 
             <p className="text-center text-[10px] text-muted-foreground uppercase tracking-widest">
-              Ranking oficial � Futbol y Porro FC
+              Ranking oficial · Fútbol y Porro FC
             </p>
           </>
         )}

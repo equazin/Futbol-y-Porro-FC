@@ -14,6 +14,100 @@ export type Database = {
   }
   public: {
     Tables: {
+      fine_presets: {
+        Row: {
+          id: string
+          motivo: string
+          monto_default: number
+          activo: boolean
+          orden: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          motivo: string
+          monto_default?: number
+          activo?: boolean
+          orden?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          motivo?: string
+          monto_default?: number
+          activo?: boolean
+          orden?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
+      player_bonuses: {
+        Row: {
+          id: string
+          player_id: string
+          motivo: string
+          puntos: number
+          fecha: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          player_id: string
+          motivo: string
+          puntos: number
+          fecha?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          player_id?: string
+          motivo?: string
+          puntos?: number
+          fecha?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_bonuses_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      player_panel_wins: {
+        Row: {
+          id: string
+          player_id: string
+          wins_historicas: number
+          motivo: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          player_id: string
+          wins_historicas?: number
+          motivo?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          player_id?: string
+          wins_historicas?: number
+          motivo?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_panel_wins_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contributions: {
         Row: {
           created_at: string

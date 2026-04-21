@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
-import { Wallet, TrendingUp, AlertCircle, CheckCircle2, Users, CalendarClock } from "lucide-react";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
+import { Wallet, TrendingUp, AlertCircle, CheckCircle2, Users, CalendarClock, Banknote } from "lucide-react";
+import { fmtPartidoConAño } from "@/lib/dates";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Progress } from "@/components/ui/progress";
 import { formatARS, FONDO } from "@/lib/scoring";
+import { useFondo } from "@/hooks/useRanking";
 
 type ContributionRow = {
   id: string;
@@ -45,6 +45,7 @@ type MatchGroup = {
 const Fondo = ({ readOnly = false }: { readOnly?: boolean }) => {
   const qc = useQueryClient();
   const [filter, setFilter] = useState<"all" | "pending" | "paid">("all");
+  const { data: fondoGlobal } = useFondo();
 
   const { data: contribs = [], isLoading } = useQuery({
     queryKey: ["contributions_full"],
@@ -128,15 +129,30 @@ const Fondo = ({ readOnly = false }: { readOnly?: boolean }) => {
 
   return (
     <div className="space-y-6">
-      <header className="rounded-2xl border border-primary/30 bg-gradient-card p-5 shadow-card">
-        <div className="flex items-center gap-2 mb-2">
-          <Wallet className="h-5 w-5 text-primary" />
-          <h1 className="text-2xl md:text-3xl font-black">Fondo comun</h1>
+      <header className="rounded-2xl border border-primary/30 bg-gradient-card p-5 shadow-card space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Wallet className="h-5 w-5 text-primary" />
+              <h1 className="text-2xl md:text-3xl font-black">Fondo comun</h1>
+            </div>
+            <p className="text-sm text-muted-foreground">Aporte default: {formatARS(FONDO.APORTE_POR_PARTIDO)} por jugador</p>
+          </div>
+          {fondoGlobal !== undefined && (
+            <div className="rounded-xl border border-mvp/40 bg-mvp/10 px-4 py-3 text-right shrink-0">
+              <p className="text-[10px] uppercase font-bold text-mvp tracking-wider flex items-center justify-end gap-1">
+                <Banknote className="h-3.5 w-3.5" /> Caja disponible
+              </p>
+              <p className="text-2xl font-black text-mvp">{formatARS(fondoGlobal.caja)}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Aportes + multas cobradas
+              </p>
+            </div>
+          )}
         </div>
-        <p className="text-sm text-muted-foreground">Total real acumulado: {formatARS(totals.total)} · Aporte default: {formatARS(FONDO.APORTE_POR_PARTIDO)} por jugador</p>
-        <div className="mt-4 space-y-2">
+        <div className="space-y-2">
           <div className="flex justify-between text-xs font-bold">
-            <span>Progreso de cobranza</span>
+            <span>Progreso de cobranza de aportes</span>
             <span>{totals.progreso}%</span>
           </div>
           <Progress value={totals.progreso} />
@@ -176,7 +192,7 @@ const Fondo = ({ readOnly = false }: { readOnly?: boolean }) => {
               <div className="px-4 py-3 border-b border-border/40 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <p className="font-black capitalize">
-                    {group.fecha ? format(new Date(group.fecha), "EEEE d 'de' MMMM yyyy", { locale: es }) : "Partido"}
+                    {group.fecha ? fmtPartidoConAño(group.fecha) : "Partido"}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {group.rows.length} jugadores · {formatARS(group.total)} total · {formatARS(group.pendiente)} pendiente

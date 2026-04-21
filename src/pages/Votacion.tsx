@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Vote, Star, Goal, Check, ArrowLeft, Sparkles, Trophy } from "lucide-react";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
+import { fmtPartidoSinHora, fmtHora } from "@/lib/dates";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -114,10 +113,10 @@ const Votacion = () => {
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="font-black capitalize">
-                        {format(new Date(m.fecha), "EEEE d 'de' MMMM", { locale: es })}
+                        {fmtPartidoSinHora(m.fecha)}
                       </p>
                       <p className="text-xs text-muted-foreground uppercase tracking-wider mt-1">
-                        {m.estado} · {format(new Date(m.fecha), "HH:mm")} hs
+                        {m.estado} · {fmtHora(m.fecha)} hs
                       </p>
                     </div>
                     {m.estado === "jugado" && (
@@ -146,7 +145,7 @@ const Votacion = () => {
               Partido seleccionado
             </p>
             <p className="font-black capitalize">
-              {format(new Date(selectedMatch.fecha), "EEEE d 'de' MMMM", { locale: es })}
+              {fmtPartidoSinHora(selectedMatch.fecha)}
             </p>
           </div>
           <p className="text-xs uppercase tracking-wider text-muted-foreground font-bold">

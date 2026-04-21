@@ -303,6 +303,7 @@ export const MatchWizard = () => {
           players={players}
           selectedIds={draft.players}
           loadingLast={loadingLastPlayers}
+          lastMatchDate={matches[0]?.fecha ?? null}
           onTogglePlayer={togglePlayer}
           onSelectAll={selectAllPlayers}
           onClear={clearPlayers}

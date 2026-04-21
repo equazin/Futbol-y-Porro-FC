@@ -21,39 +21,6 @@ export interface RankingRow {
   puntos: number;
 }
 
-const PANEL_BONUS: Record<string, number> = {
-  Kippes: 40,
-  Fran: 20,
-  "Julio Metal": 20,
-  Peter: 20,
-};
-
-const PANEL_WINS: Record<string, number> = {
-  Kippes: 3,
-  Turro: 0,
-  Demencia: 3,
-  Topa: 4,
-  "Isleño": 0,
-  "Faculo Airbag": 4,
-  Fran: 7,
-  Ponchi: 0,
-  "Jony sucio": 1,
-  "Julio Metal": 1,
-  Valencia: 1,
-  Bini: 2,
-  Cinema: 0,
-  Chinche: 7,
-  Culebra: 2,
-  Vegui: 4,
-  Mosky: 3,
-  Bylu: 2,
-  "Pana Hija": 0,
-  "DJ Manzon": 2,
-  Nuno: 5,
-  Peter: 5,
-  Tincho: 2,
-  "Nacho Suri IND": 0,
-};
 
 function calcularPromedioRendimiento(input: {
   partidos: number;
@@ -96,7 +63,7 @@ export const useRanking = () =>
     networkMode: "always",
     retry: 1,
     queryFn: async () => {
-      const [playersRes, matchesRes, matchPlayersRes] = await Promise.all([
+      const [playersRes, matchesRes, matchPlayersRes, bonusesRes, panelWinsRes] = await Promise.all([
         withTimeout((supabase as any).from("players").select("id, nombre, apodo, foto_url, elo, activo"), "jugadores"),
         withTimeout(
           (supabase as any).from("matches").select("id, estado, equipo_a_score, equipo_b_score, mvp_player_id, gol_de_la_fecha_player_id"),
@@ -105,6 +72,12 @@ export const useRanking = () =>
         withTimeout(
           (supabase as any).from("match_players").select("player_id, match_id, equipo, goles, asistencias, calificacion, presente"),
           "participaciones",
+        ),
+        withTimeout((supabase as any).from("player_bonuses").select("player_id, puntos"), "bonuses").catch(
+          () => ({ data: [], error: null }) as { data: []; error: null },
+        ),
+        withTimeout((supabase as any).from("player_panel_wins").select("player_id, wins_historicas"), "panel_wins").catch(
+          () => ({ data: [], error: null }) as { data: []; error: null },
         ),
       ]);
 
@@ -150,6 +123,25 @@ export const useRanking = () =>
         monto: number;
         pagada: boolean;
       }>;
+
+      const bonuses = ((bonusesRes as any).data ?? []) as Array<{
+        player_id: string;
+        puntos: number;
+      }>;
+      const panelWins = ((panelWinsRes as any).data ?? []) as Array<{
+        player_id: string;
+        wins_historicas: number;
+      }>;
+
+      const bonusByPlayer = new Map<string, number>();
+      for (const b of bonuses) {
+        bonusByPlayer.set(b.player_id, (bonusByPlayer.get(b.player_id) ?? 0) + Number(b.puntos));
+      }
+
+      const panelWinsByPlayer = new Map<string, number>();
+      for (const pw of panelWins) {
+        panelWinsByPlayer.set(pw.player_id, Number(pw.wins_historicas));
+      }
 
       const closedMatches = new Map(matches.filter((m) => m.estado === "cerrado").map((m) => [m.id, m]));
       const rows = new Map<
@@ -228,8 +220,9 @@ export const useRanking = () =>
         row.promedio_calificacion =
           row.ratings_count > 0 ? Number((row.ratings_total / row.ratings_count).toFixed(2)) : null;
 
-        const wins = PANEL_WINS[row.nombre] ?? row.wins_dynamic;
-        const bonus = PANEL_BONUS[row.nombre] ?? 0;
+        const panelWinsCount = panelWinsByPlayer.get(row.player_id);
+        const wins = panelWinsCount !== undefined ? panelWinsCount + row.wins_dynamic : row.wins_dynamic;
+        const bonus = bonusByPlayer.get(row.player_id) ?? 0;
         const efectividad = row.partidos_jugados > 0 ? Number(((wins / row.partidos_jugados) * 100).toFixed(1)) : 0;
         const promedioRendimiento = calcularPromedioRendimiento({
           partidos: row.partidos_jugados,

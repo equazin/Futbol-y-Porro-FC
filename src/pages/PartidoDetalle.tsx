@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, Save, Star, Goal, Sparkles, Vote, Lock, Shuffle } from "lucide-react";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
+import { fmtPartidoLargo } from "@/lib/dates";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -252,7 +251,7 @@ const PartidoDetalle = ({ backPath = "/admin/partidos", readOnly = false }: { ba
         </Button>
         <div>
           <h1 className="text-xl md:text-2xl font-black capitalize">
-            {format(new Date(match.fecha), "EEEE d 'de' MMMM, HH:mm 'hs'", { locale: es })}
+            {fmtPartidoLargo(match.fecha)}
           </h1>
           <p className="text-xs text-muted-foreground uppercase tracking-wider">
             Estado: <span className="font-bold">{estado}</span> · {presentes.length} jugadores

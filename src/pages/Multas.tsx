@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { Plus, Receipt, Trash2, AlertTriangle } from "lucide-react";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
+import { fmtFechaCorta } from "@/lib/dates";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,19 +12,13 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { usePlayers } from "@/hooks/usePlayers";
 import { useFines, useCreateFine, useToggleFinePaid, useDeleteFine } from "@/hooks/useFines";
+import { useFinePresets } from "@/hooks/useFinePresets";
 import { formatARS } from "@/lib/scoring";
-
-const motivos = [
-  { value: "Ausencia sin avisar", monto: 1000 },
-  { value: "Llegada tarde", monto: 300 },
-  { value: "Olvido elementos", monto: 200 },
-  { value: "Roja directa", monto: 500 },
-  { value: "Otro", monto: 500 },
-];
 
 const Multas = ({ readOnly = false }: { readOnly?: boolean }) => {
   const { data: players = [] } = usePlayers();
   const { data: fines = [], isLoading } = useFines();
+  const { data: presets = [] } = useFinePresets();
   const createMut = useCreateFine();
   const toggleMut = useToggleFinePaid();
   const deleteMut = useDeleteFine();
@@ -33,8 +26,8 @@ const Multas = ({ readOnly = false }: { readOnly?: boolean }) => {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     player_id: "",
-    motivo: motivos[0].value,
-    monto: motivos[0].monto,
+    motivo: "",
+    monto: 500,
   });
 
   const totals = useMemo(() => {
@@ -60,7 +53,7 @@ const Multas = ({ readOnly = false }: { readOnly?: boolean }) => {
       });
       toast.success("Multa registrada");
       setOpen(false);
-      setForm({ player_id: "", motivo: motivos[0].value, monto: motivos[0].monto });
+      setForm({ player_id: "", motivo: "", monto: presets[0]?.monto_default ?? 500 });
     } catch (e: any) {
       toast.error(e.message);
     }
@@ -79,7 +72,13 @@ const Multas = ({ readOnly = false }: { readOnly?: boolean }) => {
           </p>
         </div>
         {!readOnly && (
-          <Button onClick={() => setOpen(true)} className="shadow-glow">
+          <Button
+            onClick={() => {
+              setForm({ player_id: "", motivo: presets[0]?.motivo ?? "", monto: presets[0]?.monto_default ?? 500 });
+              setOpen(true);
+            }}
+            className="shadow-glow"
+          >
             <Plus className="h-4 w-4 mr-1" /> Nueva
           </Button>
         )}
@@ -106,7 +105,7 @@ const Multas = ({ readOnly = false }: { readOnly?: boolean }) => {
         <EmptyState
           icon={Receipt}
           title="Sin multas registradas"
-          description={readOnly ? "No hay multas registradas." : "Cuando alguien falte sin avisar, llegue tarde o se olvide algo, registra la multa aca."}
+          description={readOnly ? "No hay multas registradas." : "Cuando alguien falte sin avisar, llegue tarde o se olvide algo, registrá la multa acá."}
           action={readOnly ? undefined : { label: "Registrar primera multa", onClick: () => setOpen(true) }}
         />
       ) : (
@@ -124,7 +123,7 @@ const Multas = ({ readOnly = false }: { readOnly?: boolean }) => {
                   {f.player?.apodo ?? f.player?.nombre ?? "Jugador eliminado"}
                 </p>
                 <p className="text-xs text-muted-foreground truncate">
-                  {f.motivo} · {format(new Date(f.fecha), "d MMM yyyy", { locale: es })}
+                  {f.motivo} · {fmtFechaCorta(f.fecha)}
                 </p>
               </div>
               <span className={`font-black text-sm ${f.pagada ? "text-mvp" : "text-destructive"}`}>
@@ -170,15 +169,15 @@ const Multas = ({ readOnly = false }: { readOnly?: boolean }) => {
                 <Select
                   value={form.motivo}
                   onValueChange={(v) => {
-                    const preset = motivos.find((m) => m.value === v);
-                    setForm({ ...form, motivo: v, monto: preset?.monto ?? form.monto });
+                    const preset = presets.find((p) => p.motivo === v);
+                    setForm({ ...form, motivo: v, monto: preset?.monto_default ?? form.monto });
                   }}
                 >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Seleccioná un motivo" /></SelectTrigger>
                   <SelectContent>
-                    {motivos.map((m) => (
-                      <SelectItem key={m.value} value={m.value}>
-                        {m.value} ({formatARS(m.monto)})
+                    {presets.map((p) => (
+                      <SelectItem key={p.id} value={p.motivo}>
+                        {p.motivo} ({formatARS(p.monto_default)})
                       </SelectItem>
                     ))}
                   </SelectContent>

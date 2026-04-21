@@ -1,4 +1,6 @@
 import { History, ListChecks, Users } from "lucide-react";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import type { Player } from "@/hooks/usePlayers";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -9,6 +11,7 @@ interface StepPlayersProps {
   players: Player[];
   selectedIds: string[];
   loadingLast: boolean;
+  lastMatchDate?: string | null;
   onTogglePlayer: (playerId: string, checked: boolean) => void;
   onSelectAll: () => void;
   onClear: () => void;
@@ -28,6 +31,7 @@ export const StepPlayers = ({
   players,
   selectedIds,
   loadingLast,
+  lastMatchDate,
   onTogglePlayer,
   onSelectAll,
   onClear,
@@ -55,9 +59,13 @@ export const StepPlayers = ({
             <ListChecks className="h-4 w-4 mr-1.5" />
             Seleccionar todos
           </Button>
-          <Button type="button" variant="outline" onClick={onUseLastMatch} disabled={loadingLast}>
+          <Button type="button" variant="outline" onClick={onUseLastMatch} disabled={loadingLast || !lastMatchDate}>
             <History className="h-4 w-4 mr-1.5" />
-            {loadingLast ? "Cargando..." : "Usar jugadores del ultimo partido"}
+            {loadingLast
+              ? "Cargando..."
+              : lastMatchDate
+                ? `Repetir del ${format(new Date(lastMatchDate), "d MMM", { locale: es })}`
+                : "Sin partidos previos"}
           </Button>
           <Button type="button" variant="ghost" onClick={onClear}>
             Limpiar

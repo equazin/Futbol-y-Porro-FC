@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Plus, Calendar, ChevronRight, Trash2, Trophy, MapPin } from "lucide-react";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
+import { fmtMes, fmtDia, fmtHora, fmtDiaSemana } from "@/lib/dates";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,9 +19,15 @@ import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { useMatches, useDeleteMatch, type Match } from "@/hooks/useMatches";
 
 const estadoStyles: Record<string, string> = {
-  pendiente: "bg-stats/15 text-stats border-stats/30",
+  pendiente: "bg-yellow-500/15 text-yellow-600 border-yellow-500/30",
   jugado: "bg-primary/15 text-primary border-primary/30",
   cerrado: "bg-mvp/15 text-mvp border-mvp/30",
+};
+
+const estadoLabels: Record<string, string> = {
+  pendiente: "Por jugarse",
+  jugado: "Jugado",
+  cerrado: "Cerrado",
 };
 
 const Partidos = ({
@@ -74,7 +79,7 @@ const Partidos = ({
         <EmptyState
           icon={Calendar}
           title="Sin partidos cargados"
-          description={readOnly ? "Aun no hay historial cargado." : "Crea el primer partido del domingo."}
+          description={readOnly ? "Todavía no hay partidos cargados." : "Creá el primer partido y armá los equipos."}
           action={readOnly ? undefined : { label: "Crear partido", onClick: () => navigate(createPath) }}
         />
       ) : (
@@ -90,15 +95,15 @@ const Partidos = ({
               >
                 <div className="flex items-center gap-4">
                   <div className="text-center px-3 py-2 rounded-xl bg-secondary/60 min-w-[68px]">
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground">{format(new Date(m.fecha), "MMM", { locale: es })}</p>
-                    <p className="text-2xl font-black leading-none">{format(new Date(m.fecha), "d")}</p>
-                    <p className="text-[10px] uppercase text-muted-foreground">{format(new Date(m.fecha), "HH:mm")}</p>
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground">{fmtMes(m.fecha)}</p>
+                    <p className="text-2xl font-black leading-none">{fmtDia(m.fecha)}</p>
+                    <p className="text-[10px] uppercase text-muted-foreground">{fmtHora(m.fecha)}</p>
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${estadoStyles[m.estado]}`}>{m.estado}</span>
-                      <span className="text-xs text-muted-foreground">{format(new Date(m.fecha), "EEEE", { locale: es })}</span>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${estadoStyles[m.estado]}`}>{estadoLabels[m.estado] ?? m.estado}</span>
+                      <span className="text-xs text-muted-foreground">{fmtDiaSemana(m.fecha)}</span>
                     </div>
 
                     {sede && (

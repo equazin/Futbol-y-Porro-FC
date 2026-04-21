@@ -20,6 +20,9 @@ import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import MatchWizardPage from "./pages/admin/MatchWizardPage";
 import MatchStats from "./pages/admin/MatchStats";
+import Bonuses from "./pages/admin/Bonuses";
+import Finanzas from "./pages/admin/Finanzas";
+import FinePresets from "./pages/admin/FinePresets";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -56,6 +59,9 @@ const App = () => (
                 <Route path="/admin/jugadores" element={<Jugadores readOnly={false} />} />
                 <Route path="/admin/fondo" element={<Fondo readOnly={false} />} />
                 <Route path="/admin/multas" element={<Multas readOnly={false} />} />
+                <Route path="/admin/bonuses" element={<Bonuses />} />
+                <Route path="/admin/finanzas" element={<Finanzas />} />
+                <Route path="/admin/fine-presets" element={<FinePresets />} />
               </Route>
             </Route>
 
