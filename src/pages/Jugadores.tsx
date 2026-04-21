@@ -42,6 +42,7 @@ const positionColors: Record<string, string> = {
 
 const Jugadores = () => {
   const { data: players = [], isLoading } = usePlayers();
+  const { data: ranking = [] } = useRanking();
   const createMut = useCreatePlayer();
   const updateMut = useUpdatePlayer();
   const deleteMut = useDeletePlayer();
@@ -50,17 +51,33 @@ const Jugadores = () => {
   const [editing, setEditing] = useState<Player | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Player | null>(null);
 
-  const [form, setForm] = useState({ nombre: "", apodo: "", posicion: "" as string });
+  const [form, setForm] = useState({
+    nombre: "",
+    apodo: "",
+    posicion: "" as string,
+    foto_url: null as string | null,
+  });
+
+  const statsByPlayer = useMemo(() => {
+    const m = new Map<string, typeof ranking[number]>();
+    ranking.forEach((r) => m.set(r.player_id, r));
+    return m;
+  }, [ranking]);
 
   const openNew = () => {
     setEditing(null);
-    setForm({ nombre: "", apodo: "", posicion: "" });
+    setForm({ nombre: "", apodo: "", posicion: "", foto_url: null });
     setOpen(true);
   };
 
   const openEdit = (p: Player) => {
     setEditing(p);
-    setForm({ nombre: p.nombre, apodo: p.apodo ?? "", posicion: p.posicion ?? "" });
+    setForm({
+      nombre: p.nombre,
+      apodo: p.apodo ?? "",
+      posicion: p.posicion ?? "",
+      foto_url: p.foto_url ?? null,
+    });
     setOpen(true);
   };
 
