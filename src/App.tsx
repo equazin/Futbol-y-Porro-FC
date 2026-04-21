@@ -9,8 +9,10 @@ import Jugadores from "./pages/Jugadores";
 import Partidos from "./pages/Partidos";
 import PartidoDetalle from "./pages/PartidoDetalle";
 import Ranking from "./pages/Ranking";
+import RankingPublico from "./pages/RankingPublico";
 import Votacion from "./pages/Votacion";
 import Fondo from "./pages/Fondo";
+import Multas from "./pages/Multas";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +24,10 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
+          {/* Modo público (sin layout) */}
+          <Route path="/ranking-publico" element={<RankingPublico />} />
+
+          {/* App principal */}
           <Route element={<AppLayout />}>
             <Route path="/" element={<Index />} />
             <Route path="/jugadores" element={<Jugadores />} />
@@ -30,6 +36,7 @@ const App = () => (
             <Route path="/ranking" element={<Ranking />} />
             <Route path="/votacion" element={<Votacion />} />
             <Route path="/fondo" element={<Fondo />} />
+            <Route path="/multas" element={<Multas />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
