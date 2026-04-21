@@ -10,6 +10,7 @@ import { useMatchWizard } from "@/context/MatchWizardContext";
 import { StepPlayers } from "./StepPlayers";
 import { StepTeams } from "./StepTeams";
 import { StepConfirm } from "./StepConfirm";
+import { GuestPlayerDialog } from "./GuestPlayerDialog";
 import { balanceTeams } from "@/lib/elo";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -30,7 +31,7 @@ const shuffle = (ids: string[]) => {
 
 export const MatchWizard = () => {
   const navigate = useNavigate();
-  const { data: players = [] } = usePlayers();
+  const { data: players = [] } = usePlayers({ onlyActive: true, tipo: "all" });
   const { data: matches = [] } = useMatches();
   const createMatchMut = useCreateMatch();
   const savePlayersMut = useSaveMatchPlayers();
@@ -39,6 +40,10 @@ export const MatchWizard = () => {
   const [step, setStep] = useState(1);
   const [loadingLastPlayers, setLoadingLastPlayers] = useState(false);
   const [loadingReuseTeams, setLoadingReuseTeams] = useState(false);
+  const [guestDialogOpen, setGuestDialogOpen] = useState(false);
+
+  const titulares = useMemo(() => players.filter((p) => p.tipo !== "invitado"), [players]);
+  const invitados = useMemo(() => players.filter((p) => p.tipo === "invitado"), [players]);
 
   const selectedPlayers = useMemo(
     () => players.filter((p) => draft.players.includes(p.id)),
@@ -58,7 +63,7 @@ export const MatchWizard = () => {
   };
 
   const selectAllPlayers = () => {
-    setDraft({ players: players.map((p) => p.id) });
+    setDraft({ players: titulares.map((p) => p.id) });
   };
 
   const clearPlayers = () => {
@@ -300,7 +305,8 @@ export const MatchWizard = () => {
 
       {step === 1 && (
         <StepPlayers
-          players={players}
+          titulares={titulares}
+          invitados={invitados}
           selectedIds={draft.players}
           loadingLast={loadingLastPlayers}
           lastMatchDate={matches[0]?.fecha ?? null}
@@ -308,6 +314,7 @@ export const MatchWizard = () => {
           onSelectAll={selectAllPlayers}
           onClear={clearPlayers}
           onUseLastMatch={loadLastMatchPlayers}
+          onAddGuest={() => setGuestDialogOpen(true)}
         />
       )}
 
@@ -339,6 +346,15 @@ export const MatchWizard = () => {
           onVenueCustomChange={(value) => setDraft({ venueCustom: value })}
         />
       )}
+
+      <GuestPlayerDialog
+        open={guestDialogOpen}
+        onOpenChange={setGuestDialogOpen}
+        onCreated={(player) => {
+          setGuestDialogOpen(false);
+          togglePlayer(player.id, true);
+        }}
+      />
 
       <footer className="sticky bottom-2 z-20 rounded-2xl border border-border/60 bg-background/95 backdrop-blur px-3 py-3 flex items-center justify-between gap-3">
         <Button type="button" variant="outline" onClick={onBack} disabled={step === 1 || isCreating}>

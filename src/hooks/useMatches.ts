@@ -124,8 +124,19 @@ export const useSaveMatchPlayers = () => {
         if (insErr) throw insErr;
 
         await supabase.from("contributions").delete().eq("match_id", matchId);
+
+        // Fetch player types to exclude guests from contributions
+        const ids = players.map((p) => p.player_id);
+        const { data: playerRows } = await supabase
+          .from("players")
+          .select("id, tipo")
+          .in("id", ids);
+        const guestIds = new Set(
+          (playerRows ?? []).filter((r: any) => r.tipo === "invitado").map((r: any) => r.id)
+        );
+
         const contribs = players
-          .filter((p) => p.presente !== false)
+          .filter((p) => p.presente !== false && !guestIds.has(p.player_id))
           .map((p) => ({
             match_id: matchId,
             player_id: p.player_id,
@@ -171,7 +182,7 @@ export const useCloseMatchVoting = () => {
         supabase.from("votes").select("*").eq("match_id", matchId),
         supabase
           .from("match_players")
-          .select("player_id, equipo, goles, asistencias, presente, player:players(id, elo)")
+          .select("player_id, equipo, goles, asistencias, presente, player:players(id, elo, tipo)")
           .eq("match_id", matchId),
         supabase.from("matches").select("equipo_a_score, equipo_b_score").eq("id", matchId).single(),
       ]);
@@ -208,8 +219,8 @@ export const useCloseMatchVoting = () => {
       const mvp = pickWinner("mvp");
       const gol = pickWinner("goal");
 
-      const teamA = mp.filter((r) => r.presente && r.equipo === "A");
-      const teamB = mp.filter((r) => r.presente && r.equipo === "B");
+      const teamA = mp.filter((r) => r.presente && r.equipo === "A" && r.player?.tipo !== "invitado");
+      const teamB = mp.filter((r) => r.presente && r.equipo === "B" && r.player?.tipo !== "invitado");
       const eloA = avgElo(teamA.map((r) => Number(r.player?.elo ?? ELO_INICIAL)));
       const eloB = avgElo(teamB.map((r) => Number(r.player?.elo ?? ELO_INICIAL)));
       const scoreA = matchRes.data.equipo_a_score;

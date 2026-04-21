@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Plus, Pencil, Trash2, Users } from "lucide-react";
+import { ArrowUpCircle, Plus, Pencil, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { PhotoUploader } from "@/components/players/PhotoUploader";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -44,8 +45,10 @@ const positionColors: Record<string, string> = {
   delantero: "bg-destructive/15 text-destructive border-destructive/30",
 };
 
+type TipoFilter = "titulares" | "invitados" | "todos";
+
 const Jugadores = ({ readOnly = false }: { readOnly?: boolean }) => {
-  const { data: players = [], isLoading } = usePlayers();
+  const { data: players = [], isLoading } = usePlayers({ onlyActive: true, tipo: "all" });
   const { data: ranking = [] } = useRanking();
   const createMut = useCreatePlayer();
   const updateMut = useUpdatePlayer();
@@ -54,6 +57,7 @@ const Jugadores = ({ readOnly = false }: { readOnly?: boolean }) => {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Player | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Player | null>(null);
+  const [tipoFilter, setTipoFilter] = useState<TipoFilter>("titulares");
 
   const [form, setForm] = useState({
     nombre: "",
@@ -67,6 +71,12 @@ const Jugadores = ({ readOnly = false }: { readOnly?: boolean }) => {
     ranking.forEach((r) => m.set(r.player_id, r));
     return m;
   }, [ranking]);
+
+  const filteredPlayers = useMemo(() => {
+    if (tipoFilter === "titulares") return players.filter((p) => p.tipo !== "invitado");
+    if (tipoFilter === "invitados") return players.filter((p) => p.tipo === "invitado");
+    return players;
+  }, [players, tipoFilter]);
 
   const openNew = () => {
     setEditing(null);
@@ -126,12 +136,24 @@ const Jugadores = ({ readOnly = false }: { readOnly?: boolean }) => {
     }
   };
 
+  const onPromote = async (p: Player) => {
+    try {
+      await updateMut.mutateAsync({ id: p.id, tipo: "titular" });
+      toast.success(`${p.apodo ?? p.nombre} promovido al plantel`);
+    } catch (e: any) {
+      toast.error(e.message ?? "Error al promover");
+    }
+  };
+
+  const titularesCount = players.filter((p) => p.tipo !== "invitado").length;
+  const invitadosCount = players.filter((p) => p.tipo === "invitado").length;
+
   return (
     <div className="space-y-6">
       <header className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-black">Jugadores</h1>
-          <p className="text-sm text-muted-foreground">{players.length} en plantel</p>
+          <p className="text-sm text-muted-foreground">{titularesCount} en plantel · {invitadosCount} invitados</p>
         </div>
         {!readOnly && (
           <Button onClick={openNew} className="shadow-glow">
@@ -140,29 +162,55 @@ const Jugadores = ({ readOnly = false }: { readOnly?: boolean }) => {
         )}
       </header>
 
+      <Tabs value={tipoFilter} onValueChange={(v) => setTipoFilter(v as TipoFilter)}>
+        <TabsList className="w-full">
+          <TabsTrigger value="titulares" className="flex-1">Titulares ({titularesCount})</TabsTrigger>
+          <TabsTrigger value="invitados" className="flex-1">Invitados ({invitadosCount})</TabsTrigger>
+          <TabsTrigger value="todos" className="flex-1">Todos</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       {isLoading ? (
         <p className="text-muted-foreground text-sm">Cargando...</p>
-      ) : players.length === 0 ? (
+      ) : filteredPlayers.length === 0 ? (
         <EmptyState
           icon={Users}
-          title="Sin jugadores todavia"
-          description={readOnly ? "Todavía no hay jugadores en el plantel." : "Agregá los integrantes del grupo para empezar."}
-          action={readOnly ? undefined : { label: "Agregar primer jugador", onClick: openNew }}
+          title={tipoFilter === "invitados" ? "Sin invitados" : "Sin jugadores todavia"}
+          description={
+            tipoFilter === "invitados"
+              ? "Los invitados se agregan desde el wizard al crear un partido."
+              : readOnly
+              ? "Todavía no hay jugadores en el plantel."
+              : "Agregá los integrantes del grupo para empezar."
+          }
+          action={readOnly || tipoFilter === "invitados" ? undefined : { label: "Agregar primer jugador", onClick: openNew }}
         />
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {players.map((p) => {
-            const stats = statsByPlayer.get(p.id);
+          {filteredPlayers.map((p) => {
+            const isGuest = p.tipo === "invitado";
+            const stats = !isGuest ? statsByPlayer.get(p.id) : undefined;
             const achievements = stats ? getAchievements(stats) : [];
             return (
               <div
                 key={p.id}
-                className="group relative rounded-xl border border-border/60 bg-gradient-card p-4 transition-smooth hover:border-primary/40 hover:shadow-glow"
+                className={`group relative rounded-xl border bg-gradient-card p-4 transition-smooth hover:shadow-glow ${
+                  isGuest
+                    ? "border-amber-500/30 hover:border-amber-500/50"
+                    : "border-border/60 hover:border-primary/40"
+                }`}
               >
                 <div className="flex items-center gap-3">
                   <PlayerAvatar nombre={p.nombre} foto_url={p.foto_url} size="lg" />
                   <div className="flex-1 min-w-0">
-                    <p className="font-black truncate">{p.apodo ?? p.nombre}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-black truncate">{p.apodo ?? p.nombre}</p>
+                      {isGuest && (
+                        <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-500">
+                          Invitado
+                        </span>
+                      )}
+                    </div>
                     {p.apodo && <p className="text-xs text-muted-foreground truncate">{p.nombre}</p>}
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                       {p.posicion && (
@@ -170,14 +218,16 @@ const Jugadores = ({ readOnly = false }: { readOnly?: boolean }) => {
                           {positionLabels[p.posicion]}
                         </span>
                       )}
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border border-border bg-secondary text-muted-foreground">
-                        ELO {Math.round(Number((p as any).elo ?? 1000))}
-                      </span>
+                      {!isGuest && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border border-border bg-secondary text-muted-foreground">
+                          ELO {Math.round(Number((p as any).elo ?? 1000))}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
 
-                {achievements.length > 0 && (
+                {!isGuest && achievements.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-3">
                     {achievements.slice(0, 4).map((a) => {
                       const Icon = a.icon;
@@ -202,7 +252,18 @@ const Jugadores = ({ readOnly = false }: { readOnly?: boolean }) => {
 
                 {!readOnly && (
                   <div className="flex gap-1 mt-3 pt-3 border-t border-border/40">
-                    <Button variant="ghost" size="sm" className="flex-1" onClick={() => openEdit(p)}>
+                    {isGuest && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex-1 text-amber-500 hover:text-amber-500 hover:bg-amber-500/10"
+                        onClick={() => onPromote(p)}
+                        disabled={updateMut.isPending}
+                      >
+                        <ArrowUpCircle className="h-3 w-3 mr-1" /> Promover
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="sm" className={isGuest ? "" : "flex-1"} onClick={() => openEdit(p)}>
                       <Pencil className="h-3 w-3 mr-1" /> Editar
                     </Button>
                     <Button

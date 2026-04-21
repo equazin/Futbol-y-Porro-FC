@@ -51,7 +51,14 @@ export const PlayerCard = ({
         {draggable && <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />}
         <PlayerAvatar nombre={player.nombre} foto_url={player.foto_url} size={compact ? "sm" : "md"} />
         <div className="min-w-0 flex-1">
-          <p className={cn("font-bold truncate", compact ? "text-xs" : "text-sm")}>{player.apodo ?? player.nombre}</p>
+          <div className="flex items-center gap-1.5">
+            <p className={cn("font-bold truncate", compact ? "text-xs" : "text-sm")}>{player.apodo ?? player.nombre}</p>
+            {(player as any).tipo === "invitado" && (
+              <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-500">
+                Inv
+              </span>
+            )}
+          </div>
           <p className="text-[10px] uppercase text-muted-foreground tracking-wider flex items-center gap-1">
             <Shield className="h-3 w-3" />
             {position} · ELO {Math.round((player as any).elo ?? 1000)}

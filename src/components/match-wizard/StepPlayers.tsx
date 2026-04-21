@@ -1,4 +1,4 @@
-import { History, ListChecks, Users } from "lucide-react";
+import { History, ListChecks, UserPlus } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { Player } from "@/hooks/usePlayers";
@@ -8,7 +8,8 @@ import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { cn } from "@/lib/utils";
 
 interface StepPlayersProps {
-  players: Player[];
+  titulares: Player[];
+  invitados: Player[];
   selectedIds: string[];
   loadingLast: boolean;
   lastMatchDate?: string | null;
@@ -16,6 +17,7 @@ interface StepPlayersProps {
   onSelectAll: () => void;
   onClear: () => void;
   onUseLastMatch: () => void;
+  onAddGuest: () => void;
 }
 
 const positionLabel = (pos: Player["posicion"]) => {
@@ -27,8 +29,44 @@ const positionLabel = (pos: Player["posicion"]) => {
   return pos;
 };
 
+const PlayerRow = ({
+  player,
+  isSelected,
+  isGuest,
+  onToggle,
+}: {
+  player: Player;
+  isSelected: boolean;
+  isGuest: boolean;
+  onToggle: (id: string, checked: boolean) => void;
+}) => (
+  <label
+    className={cn(
+      "rounded-xl border p-2.5 transition-smooth cursor-pointer bg-card/50",
+      isSelected ? "border-primary/50 bg-primary/10" : "border-border/40 hover:border-border/70",
+    )}
+  >
+    <div className="flex items-center gap-2">
+      <Checkbox checked={isSelected} onCheckedChange={(v) => onToggle(player.id, !!v)} />
+      <PlayerAvatar nombre={player.nombre} foto_url={player.foto_url} size="sm" />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-bold truncate">{player.apodo ?? player.nombre}</p>
+          {isGuest && (
+            <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-500">
+              Invitado
+            </span>
+          )}
+        </div>
+        <p className="text-[10px] uppercase text-muted-foreground tracking-wider">{positionLabel(player.posicion)}</p>
+      </div>
+    </div>
+  </label>
+);
+
 export const StepPlayers = ({
-  players,
+  titulares,
+  invitados,
   selectedIds,
   loadingLast,
   lastMatchDate,
@@ -36,6 +74,7 @@ export const StepPlayers = ({
   onSelectAll,
   onClear,
   onUseLastMatch,
+  onAddGuest,
 }: StepPlayersProps) => {
   const selected = new Set(selectedIds);
 
@@ -73,37 +112,44 @@ export const StepPlayers = ({
         </div>
       </header>
 
+      {/* Plantel titular */}
       <div className="rounded-2xl border border-border/60 bg-card/20 p-3">
-        {players.length === 0 ? (
-          <div className="text-sm text-muted-foreground p-4 text-center">No hay jugadores activos para seleccionar.</div>
+        <p className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground font-bold mb-2 px-1">Plantel</p>
+        {titulares.length === 0 ? (
+          <p className="text-sm text-muted-foreground p-4 text-center">No hay jugadores activos para seleccionar.</p>
         ) : (
           <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-2">
-            {players.map((p) => {
-              const isSelected = selected.has(p.id);
-              return (
-                <label
-                  key={p.id}
-                  className={cn(
-                    "rounded-xl border p-2.5 transition-smooth cursor-pointer bg-card/50",
-                    isSelected ? "border-primary/50 bg-primary/10" : "border-border/40 hover:border-border/70",
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <Checkbox checked={isSelected} onCheckedChange={(v) => onTogglePlayer(p.id, !!v)} />
-                    <PlayerAvatar nombre={p.nombre} foto_url={p.foto_url} size="sm" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold truncate">{p.apodo ?? p.nombre}</p>
-                      <p className="text-[10px] uppercase text-muted-foreground tracking-wider">{positionLabel(p.posicion)}</p>
-                    </div>
-                    <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                  </div>
-                </label>
-              );
-            })}
+            {titulares.map((p) => (
+              <PlayerRow key={p.id} player={p} isSelected={selected.has(p.id)} isGuest={false} onToggle={onTogglePlayer} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Jugadores extra / invitados */}
+      <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-3">
+        <div className="flex items-center justify-between mb-2 px-1">
+          <p className="text-[10px] uppercase tracking-[0.15em] text-amber-500 font-bold">
+            Jugadores extra
+            {invitados.length > 0 && ` (${invitados.filter((p) => selected.has(p.id)).length}/${invitados.length})`}
+          </p>
+          <Button type="button" variant="outline" size="sm" className="h-7 text-xs border-amber-500/40 text-amber-500 hover:bg-amber-500/10" onClick={onAddGuest}>
+            <UserPlus className="h-3.5 w-3.5 mr-1" />
+            Agregar invitado
+          </Button>
+        </div>
+        {invitados.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-3">
+            Agregá invitados si faltan jugadores para completar los equipos.
+          </p>
+        ) : (
+          <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-2">
+            {invitados.map((p) => (
+              <PlayerRow key={p.id} player={p} isSelected={selected.has(p.id)} isGuest onToggle={onTogglePlayer} />
+            ))}
           </div>
         )}
       </div>
     </section>
   );
 };
-

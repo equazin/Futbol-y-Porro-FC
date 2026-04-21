@@ -53,7 +53,9 @@ export const StepConfirm = ({
   onVenuePresetChange,
   onVenueCustomChange,
 }: StepConfirmProps) => {
-  const total = contribution * selectedPlayers.length;
+  const aportantes = selectedPlayers.filter((p) => (p as any).tipo !== "invitado");
+  const invitadosCount = selectedPlayers.length - aportantes.length;
+  const total = contribution * aportantes.length;
 
   return (
     <section className="space-y-4">
@@ -116,8 +118,11 @@ export const StepConfirm = ({
           </div>
           <div className="rounded-xl border border-mvp/35 bg-mvp/10 p-3">
             <p className="text-[10px] uppercase tracking-wider text-mvp font-bold">Resumen fondo</p>
-            <p className="text-lg font-black">{selectedPlayers.length} jugadores</p>
+            <p className="text-lg font-black">{aportantes.length} aportan</p>
             <p className="text-sm font-semibold">{formatARS(contribution)} x jugador</p>
+            {invitadosCount > 0 && (
+              <p className="text-[10px] text-muted-foreground">{invitadosCount} invitado{invitadosCount > 1 ? "s" : ""} sin aporte</p>
+            )}
             <p className="text-xl font-black text-mvp">{formatARS(total)}</p>
           </div>
         </div>
