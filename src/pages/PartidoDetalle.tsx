@@ -44,7 +44,7 @@ interface Row {
   presente: boolean;
 }
 
-const PartidoDetalle = () => {
+const PartidoDetalle = ({ backPath = "/admin/partidos" }: { backPath?: string }) => {
   const { id } = useParams<{ id: string }>();
   const { data: match, isLoading: loadingM } = useMatch(id);
   const { data: players = [] } = usePlayers();
@@ -246,7 +246,7 @@ const PartidoDetalle = () => {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="icon">
-          <Link to="/partidos">
+          <Link to={backPath}>
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>

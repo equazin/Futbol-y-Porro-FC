@@ -31,7 +31,7 @@ const estadoStyles: Record<string, string> = {
 
 const SEDES = ["Cancha Norte", "Cancha Sur", "Polideportivo", "Club Barrio", "Otra"] as const;
 
-const Partidos = () => {
+const Partidos = ({ basePath = "/admin/partidos" }: { basePath?: string }) => {
   const { data: matches = [], isLoading } = useMatches();
   const createMut = useCreateMatch();
   const deleteMut = useDeleteMatch();
@@ -103,7 +103,7 @@ const Partidos = () => {
             return (
               <Link
                 key={m.id}
-                to={`/partidos/${m.id}`}
+                to={`${basePath}/${m.id}`}
                 className="group block rounded-2xl border border-border/60 bg-gradient-card p-4 transition-smooth hover:border-primary/40 hover:shadow-glow"
               >
                 <div className="flex items-center gap-4">

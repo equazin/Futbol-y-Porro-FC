@@ -1,9 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Calendar, Trophy, Star, Wallet, ArrowRight, Goal, Sparkles, Pencil, Save, Trash2 } from "lucide-react";
+import {
+  Calendar,
+  Trophy,
+  Star,
+  Wallet,
+  ArrowRight,
+  Goal,
+  Sparkles,
+  Pencil,
+  Save,
+  Trash2,
+  BarChart3,
+  Gift,
+  CircleDollarSign,
+  Shirt,
+} from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
+import { Cell, Pie, PieChart } from "recharts";
 import { StatCard } from "@/components/ui/stat-card";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { Button } from "@/components/ui/button";
@@ -11,6 +27,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
+import { useAdminAuth } from "@/components/auth/AdminAuthProvider";
 import { useMatches } from "@/hooks/useMatches";
 import { useRanking, useFondo } from "@/hooks/useRanking";
 import { usePlayers } from "@/hooks/usePlayers";
@@ -22,7 +40,21 @@ type ManualMvpConfig = {
   note: string;
 };
 
+const RENDIMIENTO_COLORS = [
+  "#16A34A",
+  "#F59E0B",
+  "#EF4444",
+  "#38BDF8",
+  "#A855F7",
+  "#E2E8F0",
+  "#22C55E",
+  "#3B82F6",
+  "#F97316",
+  "#14B8A6",
+];
+
 const Index = () => {
+  const { isAdmin } = useAdminAuth();
   const { data: matches = [] } = useMatches();
   const { data: ranking = [] } = useRanking();
   const { data: players = [] } = usePlayers();
@@ -31,11 +63,34 @@ const Index = () => {
   const ultimoPartido = useMemo(() => matches.find((m) => m.estado !== "pendiente"), [matches]);
   const proximoPartido = useMemo(() => [...matches].reverse().find((m) => m.estado === "pendiente"), [matches]);
   const top10 = ranking.slice(0, 10);
+  const partidosJugadosCount = useMemo(() => matches.filter((m) => m.estado === "cerrado").length, [matches]);
+
+  const rendimientoActual = useMemo(
+    () =>
+      top10.map((row, index) => ({
+        key: row.player_id,
+        name: row.apodo ?? row.nombre,
+        puntos: row.puntos,
+        color: RENDIMIENTO_COLORS[index % RENDIMIENTO_COLORS.length],
+      })),
+    [top10],
+  );
+
+  const rendimientoChartConfig = useMemo<ChartConfig>(() => {
+    const config: ChartConfig = {
+      puntos: { label: "Puntos", color: RENDIMIENTO_COLORS[0] },
+    };
+
+    for (const item of rendimientoActual) {
+      config[item.key] = { label: item.name, color: item.color };
+    }
+
+    return config;
+  }, [rendimientoActual]);
 
   const year = new Date().getFullYear();
   const previousYear = year - 1;
   const manualStorageKey = `fyp:mvp_prev_year_manual:${previousYear}`;
-  const isAdminMode = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("admin") === "1";
 
   const [openManualDialog, setOpenManualDialog] = useState(false);
   const [manualPlayerId, setManualPlayerId] = useState("");
@@ -93,7 +148,7 @@ const Index = () => {
     localStorage.setItem(manualStorageKey, JSON.stringify(payload));
     setManualConfig(payload);
     setOpenManualDialog(false);
-    toast.success("MVP del año pasado guardado manualmente");
+    toast.success("MVP del anio pasado guardado manualmente");
   };
 
   const clearManualMvp = () => {
@@ -101,13 +156,19 @@ const Index = () => {
     setManualConfig(null);
     setManualPlayerId("");
     setManualNote(`${previousYear}`);
-    toast.success("MVP del año pasado limpiado");
+    toast.success("MVP del anio pasado limpiado");
   };
 
   return (
     <div className="space-y-6">
       <section className="relative overflow-hidden rounded-2xl border border-border/60 shadow-elevated">
-        <img src={stadiumHero} alt="Estadio iluminado" className="absolute inset-0 h-full w-full object-cover opacity-50" width={1920} height={1080} />
+        <img
+          src={stadiumHero}
+          alt="Estadio iluminado"
+          className="absolute inset-0 h-full w-full object-cover opacity-50"
+          width={1920}
+          height={1080}
+        />
         <div className="absolute inset-0 bg-gradient-to-tr from-background via-background/80 to-transparent" />
 
         <div className="relative p-6 md:p-10 min-h-[260px] md:min-h-[300px] grid gap-5 md:grid-cols-[1fr_320px] items-end">
@@ -141,7 +202,7 @@ const Index = () => {
             <div className="rounded-xl border border-primary/30 bg-card/70 backdrop-blur p-3">
               <div className="flex items-center justify-between mb-2 gap-2">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-primary font-bold">MVP {previousYear} (manual)</p>
-                {isAdminMode && (
+                {isAdmin && (
                   <div className="flex items-center gap-1">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setOpenManualDialog(true)}>
                       <Pencil className="h-3.5 w-3.5" />
@@ -173,7 +234,13 @@ const Index = () => {
       <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard label="Jugadores" value={players.length} icon={Trophy} variant="primary" />
         <StatCard label="Partidos" value={matches.length} icon={Calendar} variant="stats" />
-        <StatCard label="Fondo comun" value={formatARS(fondo?.total ?? 0)} icon={Wallet} variant="mvp" hint={fondo ? `${formatARS(fondo.pendiente)} por cobrar` : undefined} />
+        <StatCard
+          label="Fondo comun"
+          value={formatARS(fondo?.total ?? 0)}
+          icon={Wallet}
+          variant="mvp"
+          hint={fondo ? `${formatARS(fondo.pendiente)} por cobrar` : undefined}
+        />
         <StatCard label="MVPs entregados" value={matches.filter((m) => m.mvp_player_id).length} icon={Star} />
       </section>
 
@@ -188,7 +255,7 @@ const Index = () => {
               <p className="text-xl font-black">{format(new Date(proximoPartido.fecha), "EEEE d 'de' MMMM", { locale: es })}</p>
               <p className="text-sm text-muted-foreground">{format(new Date(proximoPartido.fecha), "HH:mm 'hs'")}</p>
               <Button asChild className="w-full mt-2">
-                <Link to={`/partidos/${proximoPartido.id}`}>
+                <Link to={`/admin/partidos/${proximoPartido.id}`}>
                   Cargar planteles <ArrowRight className="h-4 w-4 ml-1" />
                 </Link>
               </Button>
@@ -197,7 +264,7 @@ const Index = () => {
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">No hay partido programado.</p>
               <Button asChild variant="default" className="w-full">
-                <Link to="/partidos">Crear partido</Link>
+                <Link to="/admin/partidos">Crear partido</Link>
               </Button>
             </div>
           )}
@@ -232,7 +299,11 @@ const Index = () => {
               )}
               {(ultimoPartido as any).gol_fecha && (
                 <div className="flex items-center gap-2 p-2 rounded-lg bg-stats/10 border border-stats/30">
-                  <PlayerAvatar nombre={(ultimoPartido as any).gol_fecha.nombre} foto_url={(ultimoPartido as any).gol_fecha.foto_url} size="sm" />
+                  <PlayerAvatar
+                    nombre={(ultimoPartido as any).gol_fecha.nombre}
+                    foto_url={(ultimoPartido as any).gol_fecha.foto_url}
+                    size="sm"
+                  />
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] uppercase font-bold text-stats">Gol de la fecha</p>
                     <p className="text-sm font-bold truncate">{(ultimoPartido as any).gol_fecha.apodo ?? (ultimoPartido as any).gol_fecha.nombre}</p>
@@ -243,6 +314,101 @@ const Index = () => {
           ) : (
             <p className="text-sm text-muted-foreground">Aun no se jugaron partidos.</p>
           )}
+        </div>
+      </section>
+
+      <section className="grid xl:grid-cols-2 gap-4">
+        <div className="rounded-2xl border border-border/60 bg-gradient-card p-5 shadow-card">
+          <div className="flex items-center gap-2 mb-3">
+            <BarChart3 className="h-5 w-5 text-stats" />
+            <h3 className="text-2xl font-black tracking-tight">Rendimiento Actual</h3>
+          </div>
+          <p className="text-sm font-semibold mb-4">
+            Partidos Jugados: <span className="text-mvp">{partidosJugadosCount}</span>
+          </p>
+
+          {rendimientoActual.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-[minmax(0,220px)_1fr] items-center">
+              <ChartContainer config={rendimientoChartConfig} className="mx-auto aspect-square h-[220px]">
+                <PieChart>
+                  <ChartTooltip
+                    cursor={false}
+                    content={
+                      <ChartTooltipContent
+                        formatter={(value, _, item) => (
+                          <>
+                            <span className="text-muted-foreground">{item.name}</span>
+                            <span className="ml-auto font-mono font-semibold">{Number(value).toLocaleString()} pts</span>
+                          </>
+                        )}
+                      />
+                    }
+                  />
+                  <Pie data={rendimientoActual} dataKey="puntos" nameKey="name" innerRadius={52} outerRadius={82} paddingAngle={2}>
+                    {rendimientoActual.map((entry) => (
+                      <Cell key={entry.key} fill={entry.color} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ChartContainer>
+
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                {rendimientoActual.map((item) => (
+                  <div key={`legend-${item.key}`} className="flex items-center gap-2 text-sm min-w-0">
+                    <span className="h-2.5 w-2.5 rounded-[2px] shrink-0" style={{ backgroundColor: item.color }} />
+                    <span className="truncate text-muted-foreground">{item.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Sin datos para mostrar rendimiento actual.</p>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-border/60 bg-gradient-card p-5 shadow-card">
+          <div className="flex items-center gap-2 mb-4">
+            <Gift className="h-5 w-5 text-mvp" />
+            <h3 className="text-2xl font-black tracking-tight">Premios Temporada</h3>
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex items-center justify-between py-3 border-b border-border/40">
+              <span className="text-2xl font-black text-mvp">1°</span>
+              <span className="flex items-center gap-2 font-black text-xl">
+                <CircleDollarSign className="h-5 w-5 text-mvp" />
+                {formatARS(100000)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between py-3 border-b border-border/40">
+              <span className="text-2xl font-black text-muted-foreground">2°</span>
+              <span className="flex items-center gap-2 font-black text-xl">
+                <CircleDollarSign className="h-5 w-5 text-primary" />
+                {formatARS(50000)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between py-3 border-b border-border/40">
+              <span className="text-2xl font-black text-primary">3°</span>
+              <span className="flex items-center gap-2 font-black text-lg">
+                <Shirt className="h-5 w-5 text-primary" />
+                Remera Nuevos Trapos
+              </span>
+            </div>
+            <div className="flex items-center justify-between py-3 border-b border-border/40">
+              <span className="text-2xl font-black text-muted-foreground">4°</span>
+              <span className="flex items-center gap-2 font-black text-lg">
+                <Shirt className="h-5 w-5 text-primary" />
+                Remera Nuevos Trapos
+              </span>
+            </div>
+            <div className="flex items-center justify-between py-3">
+              <span className="text-2xl font-black text-muted-foreground">5°</span>
+              <span className="flex items-center gap-2 font-black text-lg">
+                <Shirt className="h-5 w-5 text-primary" />
+                Remera Nuevos Trapos
+              </span>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -261,7 +427,10 @@ const Index = () => {
         {top10.length > 0 ? (
           <div className="rounded-2xl border border-border/60 bg-gradient-card overflow-hidden">
             {top10.map((row, i) => (
-              <div key={row.player_id} className="flex items-center gap-3 p-3 border-b border-border/40 last:border-b-0 hover:bg-secondary/40 transition-smooth">
+              <div
+                key={row.player_id}
+                className="flex items-center gap-3 p-3 border-b border-border/40 last:border-b-0 hover:bg-secondary/40 transition-smooth"
+              >
                 <div className={`w-7 text-center font-black text-sm ${i === 0 ? "text-mvp" : i < 3 ? "text-primary" : "text-muted-foreground"}`}>
                   {i + 1}
                 </div>
@@ -273,9 +442,7 @@ const Index = () => {
                       <Goal className="inline h-3 w-3" /> {row.goles}
                     </span>
                     <span>Asist: {row.asistencias}</span>
-                    <span className={row.mvp_count > 0 ? "text-mvp font-semibold" : ""}>
-                      MVPs: {row.mvp_count ?? 0}
-                    </span>
+                    <span className={row.mvp_count > 0 ? "text-mvp font-semibold" : ""}>MVPs: {row.mvp_count ?? 0}</span>
                   </p>
                 </div>
                 <div className="text-right">

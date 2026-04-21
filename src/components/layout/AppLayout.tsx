@@ -1,15 +1,12 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { Home, Users, Calendar, Trophy, Vote, Wallet, Receipt } from "lucide-react";
+import { Home, Trophy, Vote, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { to: "/", label: "Inicio", icon: Home },
-  { to: "/partidos", label: "Partidos", icon: Calendar },
-  { to: "/jugadores", label: "Jugadores", icon: Users },
   { to: "/ranking", label: "Ranking", icon: Trophy },
   { to: "/votacion", label: "Votar", icon: Vote },
-  { to: "/fondo", label: "Fondo", icon: Wallet },
-  { to: "/multas", label: "Multas", icon: Receipt },
+  { to: "/admin/login", label: "Admin", icon: ShieldCheck },
 ];
 
 export const AppLayout = () => {
@@ -69,7 +66,7 @@ export const AppLayout = () => {
       </main>
 
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 glass border-t border-border/50">
-        <div className="grid grid-cols-7">
+        <div className="grid grid-cols-4">
           {navItems.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
