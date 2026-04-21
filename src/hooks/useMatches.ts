@@ -50,6 +50,22 @@ export const useMatchPlayers = (matchId?: string) =>
     },
   });
 
+export const useMatchContributionAmount = (matchId?: string) =>
+  useQuery({
+    queryKey: ["match_contribution_amount", matchId],
+    enabled: !!matchId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("contributions")
+        .select("monto")
+        .eq("match_id", matchId!);
+      if (error) throw error;
+      if (!data || data.length === 0) return null;
+      const avg = data.reduce((acc, r) => acc + Number(r.monto || 0), 0) / data.length;
+      return Math.round(avg);
+    },
+  });
+
 export const useCreateMatch = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -88,8 +104,17 @@ export interface MatchPlayerInput {
 export const useSaveMatchPlayers = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ matchId, players }: { matchId: string; players: MatchPlayerInput[] }) => {
-      // Borrar planteles previos y reinsertar (más simple para edición)
+    mutationFn: async ({
+      matchId,
+      players,
+      aportePorJugador,
+    }: {
+      matchId: string;
+      players: MatchPlayerInput[];
+      aportePorJugador?: number;
+    }) => {
+      const aporte = Math.max(0, Number(aportePorJugador ?? FONDO.APORTE_POR_PARTIDO));
+
       const { error: delErr } = await supabase.from("match_players").delete().eq("match_id", matchId);
       if (delErr) throw delErr;
 
@@ -98,14 +123,13 @@ export const useSaveMatchPlayers = () => {
         const { error: insErr } = await supabase.from("match_players").insert(rows);
         if (insErr) throw insErr;
 
-        // Crear contributions automáticas para cada jugador presente
         await supabase.from("contributions").delete().eq("match_id", matchId);
         const contribs = players
           .filter((p) => p.presente !== false)
           .map((p) => ({
             match_id: matchId,
             player_id: p.player_id,
-            monto: FONDO.APORTE_POR_PARTIDO,
+            monto: aporte,
           }));
         if (contribs.length > 0) {
           const { error: cErr } = await supabase.from("contributions").insert(contribs);
@@ -118,6 +142,7 @@ export const useSaveMatchPlayers = () => {
       qc.invalidateQueries({ queryKey: ["matches"] });
       qc.invalidateQueries({ queryKey: ["rankings"] });
       qc.invalidateQueries({ queryKey: ["fondo"] });
+      qc.invalidateQueries({ queryKey: ["match_contribution_amount", vars.matchId] });
     },
   });
 };
@@ -138,12 +163,6 @@ export const useUpdateMatch = () => {
   });
 };
 
-/**
- * Cierra la votación de un partido:
- * 1) Cuenta votos MVP y Gol y resuelve desempates
- * 2) Recalcula ELO de todos los jugadores presentes según el resultado del marcador
- * 3) Asigna mvp/gol_fecha y marca el partido como "cerrado"
- */
 export const useCloseMatchVoting = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -168,12 +187,13 @@ export const useCloseMatchVoting = () => {
         if (r.presente) stats.set(r.player_id, { goles: r.goles, asistencias: r.asistencias });
       });
 
-      // 1) Ganadores de votación
       const pickWinner = (type: "mvp" | "goal"): string | null => {
         const tally = new Map<string, number>();
-        votes.filter((v) => v.type === type).forEach((v) => {
-          tally.set(v.voted_player_id, (tally.get(v.voted_player_id) ?? 0) + 1);
-        });
+        votes
+          .filter((v) => v.type === type)
+          .forEach((v) => {
+            tally.set(v.voted_player_id, (tally.get(v.voted_player_id) ?? 0) + 1);
+          });
         if (tally.size === 0) return null;
         const ranked = Array.from(tally.entries())
           .map(([pid, count]) => ({
@@ -188,7 +208,6 @@ export const useCloseMatchVoting = () => {
       const mvp = pickWinner("mvp");
       const gol = pickWinner("goal");
 
-      // 2) Recalcular ELO
       const teamA = mp.filter((r) => r.presente && r.equipo === "A");
       const teamB = mp.filter((r) => r.presente && r.equipo === "B");
       const eloA = avgElo(teamA.map((r) => Number(r.player?.elo ?? ELO_INICIAL)));
@@ -210,12 +229,8 @@ export const useCloseMatchVoting = () => {
         eloUpdates.push({ id: r.player_id, elo: Math.round(newElo(cur, expB, resultB)) });
       });
 
-      // Aplicar updates de ELO en paralelo
-      await Promise.all(
-        eloUpdates.map((u) => supabase.from("players").update({ elo: u.elo } as any).eq("id", u.id)),
-      );
+      await Promise.all(eloUpdates.map((u) => supabase.from("players").update({ elo: u.elo } as any).eq("id", u.id)));
 
-      // 3) Cerrar partido
       const { data, error } = await supabase
         .from("matches")
         .update({

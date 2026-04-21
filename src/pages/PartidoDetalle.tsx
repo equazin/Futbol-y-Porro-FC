@@ -7,21 +7,32 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { usePlayers } from "@/hooks/usePlayers";
 import {
-  useMatch, useMatchPlayers, useSaveMatchPlayers, useUpdateMatch, useCloseMatchVoting,
+  useMatch,
+  useMatchPlayers,
+  useSaveMatchPlayers,
+  useUpdateMatch,
+  useCloseMatchVoting,
+  useMatchContributionAmount,
   type MatchPlayerInput,
 } from "@/hooks/useMatches";
 import { useVotes, tallyVotes } from "@/hooks/useVotes";
 import { balanceTeams } from "@/lib/elo";
+import { FONDO, formatARS } from "@/lib/scoring";
 
 interface Row {
   player_id: string;
@@ -37,6 +48,7 @@ const PartidoDetalle = () => {
   const { data: match, isLoading: loadingM } = useMatch(id);
   const { data: players = [] } = usePlayers();
   const { data: existingMP = [] } = useMatchPlayers(id);
+  const { data: existingAporte } = useMatchContributionAmount(id);
 
   const saveMut = useSaveMatchPlayers();
   const updateMut = useUpdateMatch();
@@ -49,9 +61,9 @@ const PartidoDetalle = () => {
   const [estado, setEstado] = useState<string>("pendiente");
   const [mvpId, setMvpId] = useState<string>("");
   const [golFechaId, setGolFechaId] = useState<string>("");
+  const [aportePorJugador, setAportePorJugador] = useState<number>(FONDO.APORTE_POR_PARTIDO);
   const [confirmClose, setConfirmClose] = useState(false);
 
-  // Inicializar rows cuando carguen jugadores y planteles
   useEffect(() => {
     if (players.length === 0) return;
     const init: Record<string, Row> = {};
@@ -88,12 +100,17 @@ const PartidoDetalle = () => {
     }
   }, [match]);
 
+  useEffect(() => {
+    if (typeof existingAporte === "number" && existingAporte > 0) {
+      setAportePorJugador(existingAporte);
+    } else {
+      setAportePorJugador(FONDO.APORTE_POR_PARTIDO);
+    }
+  }, [existingAporte]);
+
   const equipoA = useMemo(() => Object.values(rows).filter((r) => r.equipo === "A"), [rows]);
   const equipoB = useMemo(() => Object.values(rows).filter((r) => r.equipo === "B"), [rows]);
-  const presentes = useMemo(
-    () => Object.values(rows).filter((r) => r.equipo !== null),
-    [rows]
-  );
+  const presentes = useMemo(() => Object.values(rows).filter((r) => r.equipo !== null), [rows]);
 
   const update = (pid: string, patch: Partial<Row>) =>
     setRows((prev) => ({ ...prev, [pid]: { ...prev[pid], ...patch, presente: patch.equipo !== null ? true : prev[pid].presente } }));
@@ -105,17 +122,14 @@ const PartidoDetalle = () => {
     }));
   };
 
-  /**
-   * Auto-arma equipos balanceados a partir de los jugadores ya marcados como presentes
-   * (los que tienen equipo A o B). Si no hay ninguno, usa todos los activos.
-   */
   const onBalance = () => {
-    const candidates = (Object.values(rows).filter((r) => r.equipo !== null).length > 0)
-      ? Object.values(rows).filter((r) => r.equipo !== null)
-      : Object.values(rows);
+    const candidates =
+      Object.values(rows).filter((r) => r.equipo !== null).length > 0
+        ? Object.values(rows).filter((r) => r.equipo !== null)
+        : Object.values(rows);
 
     if (candidates.length < 2) {
-      toast.error("Marcá al menos 2 jugadores como presentes");
+      toast.error("Marca al menos 2 jugadores como presentes");
       return;
     }
 
@@ -127,12 +141,15 @@ const PartidoDetalle = () => {
 
     setRows((prev) => {
       const next = { ...prev };
-      // Reset solo los candidatos
       candidates.forEach((r) => {
         next[r.player_id] = { ...next[r.player_id], equipo: null, presente: false };
       });
-      A.forEach((pid) => { next[pid] = { ...next[pid], equipo: "A", presente: true }; });
-      B.forEach((pid) => { next[pid] = { ...next[pid], equipo: "B", presente: true }; });
+      A.forEach((pid) => {
+        next[pid] = { ...next[pid], equipo: "A", presente: true };
+      });
+      B.forEach((pid) => {
+        next[pid] = { ...next[pid], equipo: "B", presente: true };
+      });
       return next;
     });
     toast.success(`Equipos auto-armados: ${A.length} vs ${B.length}`);
@@ -149,7 +166,11 @@ const PartidoDetalle = () => {
       presente: r.presente,
     }));
     try {
-      await saveMut.mutateAsync({ matchId: id, players: toSave });
+      await saveMut.mutateAsync({
+        matchId: id,
+        players: toSave,
+        aportePorJugador,
+      });
       toast.success(`Planteles guardados (${toSave.length} jugadores)`);
     } catch (e: any) {
       toast.error(e.message);
@@ -179,7 +200,7 @@ const PartidoDetalle = () => {
       const res = await closeMut.mutateAsync(id);
       const mvpName = players.find((p) => p.id === res.mvp)?.apodo ?? players.find((p) => p.id === res.mvp)?.nombre;
       const golName = players.find((p) => p.id === res.gol)?.apodo ?? players.find((p) => p.id === res.gol)?.nombre;
-      toast.success(`Votación cerrada · MVP: ${mvpName ?? "—"} · Gol: ${golName ?? "—"}`);
+      toast.success(`Votacion cerrada · MVP: ${mvpName ?? "-"} · Gol: ${golName ?? "-"}`);
       setConfirmClose(false);
     } catch (e: any) {
       toast.error(e.message);
@@ -188,20 +209,19 @@ const PartidoDetalle = () => {
 
   const mvpTally = useMemo(() => tallyVotes(votes, "mvp"), [votes]);
   const goalTally = useMemo(() => tallyVotes(votes, "goal"), [votes]);
-  const totalVoters = useMemo(
-    () => new Set(votes.map((v) => v.voter_player_id)).size,
-    [votes],
-  );
+  const totalVoters = useMemo(() => new Set(votes.map((v) => v.voter_player_id)).size, [votes]);
 
   if (loadingM || !match) {
-    return <p className="text-muted-foreground">Cargando partido…</p>;
+    return <p className="text-muted-foreground">Cargando partido...</p>;
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="icon">
-          <Link to="/partidos"><ArrowLeft className="h-4 w-4" /></Link>
+          <Link to="/partidos">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
         </Button>
         <div>
           <h1 className="text-xl md:text-2xl font-black capitalize">
@@ -219,33 +239,45 @@ const PartidoDetalle = () => {
           <TabsTrigger value="resultado">Resultado & Premios</TabsTrigger>
         </TabsList>
 
-        {/* PLANTELES */}
         <TabsContent value="planteles" className="space-y-4 mt-4">
           <div className="rounded-xl border border-border/60 bg-gradient-card p-4">
-            <div className="flex items-start justify-between gap-3 mb-3">
-              <p className="text-xs text-muted-foreground flex-1">
-                Asigná cada jugador a un equipo (A o B). Quien quede sin equipo se considera ausente.
+            <div className="grid gap-3 lg:grid-cols-[1fr_auto] items-start mb-3">
+              <p className="text-xs text-muted-foreground">
+                Asigna cada jugador a un equipo (A o B). Quien quede sin equipo se considera ausente.
               </p>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={onBalance}
-                className="border-mvp/40 hover:bg-mvp/10 shrink-0"
-              >
+              <Button type="button" size="sm" variant="outline" onClick={onBalance} className="border-mvp/40 hover:bg-mvp/10 shrink-0">
                 <Shuffle className="h-3.5 w-3.5 mr-1.5" />
                 Auto-armar
               </Button>
             </div>
+
+            <div className="grid sm:grid-cols-2 gap-3 mb-4">
+              <div className="space-y-2">
+                <Label>Aporte por jugador (fondo comun)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={100}
+                  value={aportePorJugador}
+                  onChange={(e) => setAportePorJugador(Math.max(0, Number(e.target.value) || 0))}
+                />
+              </div>
+              <div className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2">
+                <p className="text-[10px] uppercase font-bold text-primary">Resumen fondo</p>
+                <p className="text-sm font-bold">
+                  {presentes.length} jugadores x {formatARS(aportePorJugador)} ={" "}
+                  {formatARS(presentes.length * aportePorJugador)}
+                </p>
+                <p className="text-[11px] text-muted-foreground">Default recomendado: {formatARS(FONDO.APORTE_POR_PARTIDO)}</p>
+              </div>
+            </div>
+
             <div className="grid sm:grid-cols-2 gap-2">
               {players.map((p) => {
                 const r = rows[p.id];
                 if (!r) return null;
                 return (
-                  <div
-                    key={p.id}
-                    className="flex items-center gap-2 p-2 rounded-lg border border-border/40 bg-card/50"
-                  >
+                  <div key={p.id} className="flex items-center gap-2 p-2 rounded-lg border border-border/40 bg-card/50">
                     <PlayerAvatar nombre={p.nombre} foto_url={p.foto_url} size="md" />
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-sm truncate">{p.apodo ?? p.nombre}</p>
@@ -255,20 +287,20 @@ const PartidoDetalle = () => {
                         type="button"
                         onClick={() => setEquipo(p.id, r.equipo === "A" ? null : "A")}
                         className={`h-8 w-8 rounded-md text-xs font-black transition-smooth ${
-                          r.equipo === "A"
-                            ? "bg-primary text-primary-foreground shadow-glow"
-                            : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                          r.equipo === "A" ? "bg-primary text-primary-foreground shadow-glow" : "bg-secondary text-muted-foreground hover:bg-secondary/80"
                         }`}
-                      >A</button>
+                      >
+                        A
+                      </button>
                       <button
                         type="button"
                         onClick={() => setEquipo(p.id, r.equipo === "B" ? null : "B")}
                         className={`h-8 w-8 rounded-md text-xs font-black transition-smooth ${
-                          r.equipo === "B"
-                            ? "bg-stats text-stats-foreground"
-                            : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                          r.equipo === "B" ? "bg-stats text-stats-foreground" : "bg-secondary text-muted-foreground hover:bg-secondary/80"
                         }`}
-                      >B</button>
+                      >
+                        B
+                      </button>
                     </div>
                   </div>
                 );
@@ -276,7 +308,6 @@ const PartidoDetalle = () => {
             </div>
           </div>
 
-          {/* Stats por equipo */}
           {[
             { team: "A" as const, list: equipoA, color: "primary", label: "Equipo A" },
             { team: "B" as const, list: equipoB, color: "stats", label: "Equipo B" },
@@ -302,7 +333,8 @@ const PartidoDetalle = () => {
                           <div>
                             <Label className="text-[10px] uppercase text-muted-foreground">Goles</Label>
                             <Input
-                              type="number" min={0}
+                              type="number"
+                              min={0}
                               value={r.goles}
                               onChange={(e) => update(r.player_id, { goles: Math.max(0, Number(e.target.value) || 0) })}
                               className="h-9"
@@ -311,7 +343,8 @@ const PartidoDetalle = () => {
                           <div>
                             <Label className="text-[10px] uppercase text-muted-foreground">Asist.</Label>
                             <Input
-                              type="number" min={0}
+                              type="number"
+                              min={0}
                               value={r.asistencias}
                               onChange={(e) => update(r.player_id, { asistencias: Math.max(0, Number(e.target.value) || 0) })}
                               className="h-9"
@@ -320,7 +353,10 @@ const PartidoDetalle = () => {
                           <div>
                             <Label className="text-[10px] uppercase text-muted-foreground">Calif.</Label>
                             <Input
-                              type="number" min={1} max={10} step={0.5}
+                              type="number"
+                              min={1}
+                              max={10}
+                              step={0.5}
                               value={r.calificacion ?? ""}
                               onChange={(e) => {
                                 const v = e.target.value;
@@ -345,18 +381,29 @@ const PartidoDetalle = () => {
           </Button>
         </TabsContent>
 
-        {/* RESULTADO */}
         <TabsContent value="resultado" className="space-y-4 mt-4">
           <div className="rounded-xl border border-border/60 bg-gradient-card p-5">
             <h3 className="font-black mb-4">Marcador</h3>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-primary font-bold">Equipo A</Label>
-                <Input type="number" min={0} value={scoreA} onChange={(e) => setScoreA(Math.max(0, Number(e.target.value) || 0))} className="h-14 text-3xl font-black text-center" />
+                <Input
+                  type="number"
+                  min={0}
+                  value={scoreA}
+                  onChange={(e) => setScoreA(Math.max(0, Number(e.target.value) || 0))}
+                  className="h-14 text-3xl font-black text-center"
+                />
               </div>
               <div className="space-y-2">
                 <Label className="text-stats font-bold">Equipo B</Label>
-                <Input type="number" min={0} value={scoreB} onChange={(e) => setScoreB(Math.max(0, Number(e.target.value) || 0))} className="h-14 text-3xl font-black text-center" />
+                <Input
+                  type="number"
+                  min={0}
+                  value={scoreB}
+                  onChange={(e) => setScoreB(Math.max(0, Number(e.target.value) || 0))}
+                  className="h-14 text-3xl font-black text-center"
+                />
               </div>
             </div>
           </div>
@@ -367,33 +414,53 @@ const PartidoDetalle = () => {
             </h3>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label className="flex items-center gap-1"><Star className="h-3 w-3 text-mvp" /> MVP del partido</Label>
+                <Label className="flex items-center gap-1">
+                  <Star className="h-3 w-3 text-mvp" /> MVP del partido
+                </Label>
                 <Select value={mvpId} onValueChange={setMvpId}>
-                  <SelectTrigger><SelectValue placeholder="Sin MVP designado" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sin MVP designado" />
+                  </SelectTrigger>
                   <SelectContent>
                     {presentes.map((r) => {
                       const p = players.find((pl) => pl.id === r.player_id)!;
-                      return <SelectItem key={r.player_id} value={r.player_id}>{p.apodo ?? p.nombre}</SelectItem>;
+                      return (
+                        <SelectItem key={r.player_id} value={r.player_id}>
+                          {p.apodo ?? p.nombre}
+                        </SelectItem>
+                      );
                     })}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="flex items-center gap-1"><Goal className="h-3 w-3 text-stats" /> Gol de la fecha</Label>
+                <Label className="flex items-center gap-1">
+                  <Goal className="h-3 w-3 text-stats" /> Gol de la fecha
+                </Label>
                 <Select value={golFechaId} onValueChange={setGolFechaId}>
-                  <SelectTrigger><SelectValue placeholder="Sin gol designado" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sin gol designado" />
+                  </SelectTrigger>
                   <SelectContent>
-                    {presentes.filter((r) => r.goles > 0).map((r) => {
-                      const p = players.find((pl) => pl.id === r.player_id)!;
-                      return <SelectItem key={r.player_id} value={r.player_id}>{p.apodo ?? p.nombre} ({r.goles} ⚽)</SelectItem>;
-                    })}
+                    {presentes
+                      .filter((r) => r.goles > 0)
+                      .map((r) => {
+                        const p = players.find((pl) => pl.id === r.player_id)!;
+                        return (
+                          <SelectItem key={r.player_id} value={r.player_id}>
+                            {p.apodo ?? p.nombre} ({r.goles} gol)
+                          </SelectItem>
+                        );
+                      })}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
                 <Label>Estado del partido</Label>
                 <Select value={estado} onValueChange={setEstado}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="pendiente">Pendiente</SelectItem>
                     <SelectItem value="jugado">Jugado</SelectItem>
@@ -412,11 +479,10 @@ const PartidoDetalle = () => {
             Guardar resultado
           </Button>
 
-          {/* PANEL DE VOTACIÓN */}
           <div className="rounded-xl border border-mvp/30 bg-gradient-card p-5 space-y-4">
             <div className="flex items-center justify-between gap-2">
               <h3 className="font-black flex items-center gap-2">
-                <Vote className="h-4 w-4 text-mvp" /> Votación de los jugadores
+                <Vote className="h-4 w-4 text-mvp" /> Votacion de los jugadores
               </h3>
               <span className="text-xs font-bold text-muted-foreground">
                 {totalVoters} {totalVoters === 1 ? "voto" : "votos"}
@@ -425,7 +491,11 @@ const PartidoDetalle = () => {
 
             {votes.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-3">
-                Aún no hay votos. Compartí el link de <Link to="/votacion" className="text-mvp underline">/votación</Link> con el grupo.
+                Aun no hay votos. Comparte el link de{" "}
+                <Link to="/votacion" className="text-mvp underline">
+                  /votacion
+                </Link>{" "}
+                con el grupo.
               </p>
             ) : (
               <div className="grid sm:grid-cols-2 gap-4">
@@ -480,19 +550,12 @@ const PartidoDetalle = () => {
               </div>
             )}
 
-            <Button
-              onClick={() => setConfirmClose(true)}
-              disabled={estado === "cerrado" || closeMut.isPending}
-              variant="outline"
-              className="w-full border-mvp/40 hover:bg-mvp/10"
-            >
+            <Button onClick={() => setConfirmClose(true)} disabled={estado === "cerrado" || closeMut.isPending} variant="outline" className="w-full border-mvp/40 hover:bg-mvp/10">
               <Lock className="h-4 w-4 mr-2" />
-              {estado === "cerrado"
-                ? "Votación cerrada"
-                : "Cerrar votación y aplicar ganadores"}
+              {estado === "cerrado" ? "Votacion cerrada" : "Cerrar votacion y aplicar ganadores"}
             </Button>
             <p className="text-[11px] text-muted-foreground text-center">
-              Al cerrar se asignan automáticamente MVP y Gol de la fecha según los votos. El partido pasa a estado <b>cerrado</b> y suma al ranking.
+              Al cerrar se asignan automaticamente MVP y Gol de la fecha segun los votos. El partido pasa a estado <b>cerrado</b> y suma al ranking.
             </p>
           </div>
         </TabsContent>
@@ -501,15 +564,15 @@ const PartidoDetalle = () => {
       <AlertDialog open={confirmClose} onOpenChange={setConfirmClose}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Cerrar la votación?</AlertDialogTitle>
+            <AlertDialogTitle>Cerrar la votacion?</AlertDialogTitle>
             <AlertDialogDescription>
-              Se asignarán MVP y Gol de la fecha según los {totalVoters} {totalVoters === 1 ? "voto" : "votos"} actuales y el partido quedará <b>cerrado</b> (no se podrá volver a votar). Esta acción se puede deshacer cambiando el estado manualmente.
+              Se asignaran MVP y Gol de la fecha segun los {totalVoters} {totalVoters === 1 ? "voto" : "votos"} actuales y el partido quedara <b>cerrado</b> (no se podra volver a votar). Esta accion se puede deshacer cambiando el estado manualmente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={onCloseVoting} className="bg-mvp text-mvp-foreground hover:bg-mvp/90">
-              Cerrar votación
+              Cerrar votacion
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

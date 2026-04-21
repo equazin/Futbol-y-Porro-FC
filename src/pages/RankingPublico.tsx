@@ -14,7 +14,7 @@ const RankingPublico = () => {
     const url = window.location.href;
     if (navigator.share) {
       try {
-        await navigator.share({ title: "Ranking Domingueros FC", url });
+        await navigator.share({ title: "Ranking Futbol y Porro FC", url });
       } catch { /* canceled */ }
     } else {
       await navigator.clipboard.writeText(url);
@@ -34,8 +34,8 @@ const RankingPublico = () => {
               <span className="text-primary-foreground font-black text-lg">⚽</span>
             </div>
             <div className="text-left">
-              <h1 className="font-black text-xl tracking-tight">Domingueros FC</h1>
-              <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Ranking oficial</p>
+              <h1 className="font-black text-xl tracking-tight">Futbol y Porro FC</h1>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Futbol y Porro de los domingos</p>
             </div>
           </div>
           <h2 className="text-3xl md:text-4xl font-black mt-2 flex items-center justify-center gap-2">
@@ -151,7 +151,7 @@ const RankingPublico = () => {
             </div>
 
             <p className="text-center text-[10px] text-muted-foreground uppercase tracking-widest">
-              Liga del barrio · Domingueros FC
+              Ranking oficial � Futbol y Porro FC
             </p>
           </>
         )}
@@ -161,3 +161,4 @@ const RankingPublico = () => {
 };
 
 export default RankingPublico;
+
