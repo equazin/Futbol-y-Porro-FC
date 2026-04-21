@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Save, Star, Goal, Sparkles } from "lucide-react";
+import { ArrowLeft, Save, Star, Goal, Sparkles, Vote, Lock } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
@@ -10,12 +10,17 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { usePlayers } from "@/hooks/usePlayers";
 import {
-  useMatch, useMatchPlayers, useSaveMatchPlayers, useUpdateMatch,
+  useMatch, useMatchPlayers, useSaveMatchPlayers, useUpdateMatch, useCloseMatchVoting,
   type MatchPlayerInput,
 } from "@/hooks/useMatches";
+import { useVotes, tallyVotes } from "@/hooks/useVotes";
 
 interface Row {
   player_id: string;
@@ -34,6 +39,8 @@ const PartidoDetalle = () => {
 
   const saveMut = useSaveMatchPlayers();
   const updateMut = useUpdateMatch();
+  const closeMut = useCloseMatchVoting();
+  const { data: votes = [] } = useVotes(id);
 
   const [rows, setRows] = useState<Record<string, Row>>({});
   const [scoreA, setScoreA] = useState(0);
@@ -41,6 +48,7 @@ const PartidoDetalle = () => {
   const [estado, setEstado] = useState<string>("pendiente");
   const [mvpId, setMvpId] = useState<string>("");
   const [golFechaId, setGolFechaId] = useState<string>("");
+  const [confirmClose, setConfirmClose] = useState(false);
 
   // Inicializar rows cuando carguen jugadores y planteles
   useEffect(() => {
@@ -130,6 +138,26 @@ const PartidoDetalle = () => {
       toast.error(e.message);
     }
   };
+
+  const onCloseVoting = async () => {
+    if (!id) return;
+    try {
+      const res = await closeMut.mutateAsync(id);
+      const mvpName = players.find((p) => p.id === res.mvp)?.apodo ?? players.find((p) => p.id === res.mvp)?.nombre;
+      const golName = players.find((p) => p.id === res.gol)?.apodo ?? players.find((p) => p.id === res.gol)?.nombre;
+      toast.success(`Votación cerrada · MVP: ${mvpName ?? "—"} · Gol: ${golName ?? "—"}`);
+      setConfirmClose(false);
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
+  const mvpTally = useMemo(() => tallyVotes(votes, "mvp"), [votes]);
+  const goalTally = useMemo(() => tallyVotes(votes, "goal"), [votes]);
+  const totalVoters = useMemo(
+    () => new Set(votes.map((v) => v.voter_player_id)).size,
+    [votes],
+  );
 
   if (loadingM || !match) {
     return <p className="text-muted-foreground">Cargando partido…</p>;
@@ -337,8 +365,109 @@ const PartidoDetalle = () => {
             <Save className="h-4 w-4 mr-2" />
             Guardar resultado
           </Button>
+
+          {/* PANEL DE VOTACIÓN */}
+          <div className="rounded-xl border border-mvp/30 bg-gradient-card p-5 space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="font-black flex items-center gap-2">
+                <Vote className="h-4 w-4 text-mvp" /> Votación de los jugadores
+              </h3>
+              <span className="text-xs font-bold text-muted-foreground">
+                {totalVoters} {totalVoters === 1 ? "voto" : "votos"}
+              </span>
+            </div>
+
+            {votes.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-3">
+                Aún no hay votos. Compartí el link de <Link to="/votacion" className="text-mvp underline">/votación</Link> con el grupo.
+              </p>
+            ) : (
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-2 flex items-center gap-1">
+                    <Star className="h-3 w-3 text-mvp" /> MVP
+                  </p>
+                  <div className="space-y-1.5">
+                    {mvpTally.slice(0, 5).map((t) => {
+                      const p = players.find((pl) => pl.id === t.player_id);
+                      if (!p) return null;
+                      const pct = totalVoters ? (t.count / totalVoters) * 100 : 0;
+                      return (
+                        <div key={t.player_id} className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <PlayerAvatar nombre={p.nombre} foto_url={p.foto_url} size="sm" />
+                            <p className="text-xs font-bold flex-1 truncate">{p.apodo ?? p.nombre}</p>
+                            <span className="text-xs font-black text-mvp">{t.count}</span>
+                          </div>
+                          <div className="h-1 rounded-full bg-secondary overflow-hidden">
+                            <div className="h-full bg-mvp" style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-2 flex items-center gap-1">
+                    <Goal className="h-3 w-3 text-stats" /> Gol de la fecha
+                  </p>
+                  <div className="space-y-1.5">
+                    {goalTally.slice(0, 5).map((t) => {
+                      const p = players.find((pl) => pl.id === t.player_id);
+                      if (!p) return null;
+                      const pct = totalVoters ? (t.count / totalVoters) * 100 : 0;
+                      return (
+                        <div key={t.player_id} className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <PlayerAvatar nombre={p.nombre} foto_url={p.foto_url} size="sm" />
+                            <p className="text-xs font-bold flex-1 truncate">{p.apodo ?? p.nombre}</p>
+                            <span className="text-xs font-black text-stats">{t.count}</span>
+                          </div>
+                          <div className="h-1 rounded-full bg-secondary overflow-hidden">
+                            <div className="h-full bg-stats" style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <Button
+              onClick={() => setConfirmClose(true)}
+              disabled={estado === "cerrado" || closeMut.isPending}
+              variant="outline"
+              className="w-full border-mvp/40 hover:bg-mvp/10"
+            >
+              <Lock className="h-4 w-4 mr-2" />
+              {estado === "cerrado"
+                ? "Votación cerrada"
+                : "Cerrar votación y aplicar ganadores"}
+            </Button>
+            <p className="text-[11px] text-muted-foreground text-center">
+              Al cerrar se asignan automáticamente MVP y Gol de la fecha según los votos. El partido pasa a estado <b>cerrado</b> y suma al ranking.
+            </p>
+          </div>
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={confirmClose} onOpenChange={setConfirmClose}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Cerrar la votación?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se asignarán MVP y Gol de la fecha según los {totalVoters} {totalVoters === 1 ? "voto" : "votos"} actuales y el partido quedará <b>cerrado</b> (no se podrá volver a votar). Esta acción se puede deshacer cambiando el estado manualmente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={onCloseVoting} className="bg-mvp text-mvp-foreground hover:bg-mvp/90">
+              Cerrar votación
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
