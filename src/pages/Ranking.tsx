@@ -1,11 +1,16 @@
-import { Trophy, Goal, Star, Sparkles, Award } from "lucide-react";
+import { Trophy, Goal, Star, Award, Heart } from "lucide-react";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { useRanking } from "@/hooks/useRanking";
+import { useChemistry } from "@/hooks/useChemistry";
+import { usePlayers } from "@/hooks/usePlayers";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatARS, FONDO } from "@/lib/scoring";
 
 const Ranking = () => {
   const { data: ranking = [], isLoading } = useRanking();
+  const { data: chemistry = [] } = useChemistry(2);
+  const { data: players = [] } = usePlayers();
+  const playerById = (id: string) => players.find((p) => p.id === id);
 
   if (isLoading) return <p className="text-muted-foreground">Cargando…</p>;
 
