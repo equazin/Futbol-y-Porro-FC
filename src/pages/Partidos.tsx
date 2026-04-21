@@ -31,7 +31,7 @@ const estadoStyles: Record<string, string> = {
 
 const SEDES = ["Cancha Norte", "Cancha Sur", "Polideportivo", "Club Barrio", "Otra"] as const;
 
-const Partidos = ({ basePath = "/admin/partidos" }: { basePath?: string }) => {
+const Partidos = ({ basePath = "/admin/partidos", readOnly = false }: { basePath?: string; readOnly?: boolean }) => {
   const { data: matches = [], isLoading } = useMatches();
   const createMut = useCreateMatch();
   const deleteMut = useDeleteMatch();
@@ -86,15 +86,22 @@ const Partidos = ({ basePath = "/admin/partidos" }: { basePath?: string }) => {
           <h1 className="text-2xl md:text-3xl font-black">Partidos</h1>
           <p className="text-sm text-muted-foreground">{matches.length} en historia</p>
         </div>
-        <Button onClick={() => setOpen(true)} className="shadow-glow">
-          <Plus className="h-4 w-4 mr-1" /> Nuevo
-        </Button>
+        {!readOnly && (
+          <Button onClick={() => setOpen(true)} className="shadow-glow">
+            <Plus className="h-4 w-4 mr-1" /> Nuevo
+          </Button>
+        )}
       </header>
 
       {isLoading ? (
         <p className="text-muted-foreground text-sm">Cargando...</p>
       ) : matches.length === 0 ? (
-        <EmptyState icon={Calendar} title="Sin partidos cargados" description="Crea el primer partido del domingo." action={{ label: "Crear partido", onClick: () => setOpen(true) }} />
+        <EmptyState
+          icon={Calendar}
+          title="Sin partidos cargados"
+          description={readOnly ? "Aun no hay historial cargado." : "Crea el primer partido del domingo."}
+          action={readOnly ? undefined : { label: "Crear partido", onClick: () => setOpen(true) }}
+        />
       ) : (
         <div className="space-y-3">
           {matches.map((m) => {
@@ -139,23 +146,25 @@ const Partidos = ({ basePath = "/admin/partidos" }: { basePath?: string }) => {
                         )}
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">Por jugarse - carga los planteles</p>
+                      <p className="text-sm text-muted-foreground">{readOnly ? "Por jugarse" : "Por jugarse - carga los planteles"}</p>
                     )}
                   </div>
 
                   <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="opacity-0 group-hover:opacity-100 transition-smooth text-destructive hover:bg-destructive/10"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setConfirmDelete(m);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {!readOnly && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="opacity-0 group-hover:opacity-100 transition-smooth text-destructive hover:bg-destructive/10"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setConfirmDelete(m);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                     <ChevronRight className="h-5 w-5 text-muted-foreground" />
                   </div>
                 </div>
@@ -165,65 +174,69 @@ const Partidos = ({ basePath = "/admin/partidos" }: { basePath?: string }) => {
         </div>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Nuevo partido</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>Fecha y hora</Label>
-              <Input type="datetime-local" value={fecha} onChange={(e) => setFecha(e.target.value)} />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Sede</Label>
-              <Select value={sedePreset} onValueChange={(v) => setSedePreset(v as (typeof SEDES)[number])}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona sede" />
-                </SelectTrigger>
-                <SelectContent>
-                  {SEDES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {sedePreset === "Otra" && (
+      {!readOnly && (
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Nuevo partido</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
               <div className="space-y-2">
-                <Label>Nombre de la sede</Label>
-                <Input value={sedeCustom} onChange={(e) => setSedeCustom(e.target.value)} placeholder="Ej: Complejo Don Bosco" />
+                <Label>Fecha y hora</Label>
+                <Input type="datetime-local" value={fecha} onChange={(e) => setFecha(e.target.value)} />
               </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={onCreate} disabled={createMut.isPending}>
-              Crear partido
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar este partido?</AlertDialogTitle>
-            <AlertDialogDescription>Se borraran tambien los planteles, votos y aportes asociados. Esta accion no se puede deshacer.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={onDelete} className="bg-destructive hover:bg-destructive/90">
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              <div className="space-y-2">
+                <Label>Sede</Label>
+                <Select value={sedePreset} onValueChange={(v) => setSedePreset(v as (typeof SEDES)[number])}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona sede" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SEDES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {sedePreset === "Otra" && (
+                <div className="space-y-2">
+                  <Label>Nombre de la sede</Label>
+                  <Input value={sedeCustom} onChange={(e) => setSedeCustom(e.target.value)} placeholder="Ej: Complejo Don Bosco" />
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={onCreate} disabled={createMut.isPending}>
+                Crear partido
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {!readOnly && (
+        <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Eliminar este partido?</AlertDialogTitle>
+              <AlertDialogDescription>Se borraran tambien los planteles, votos y aportes asociados. Esta accion no se puede deshacer.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={onDelete} className="bg-destructive hover:bg-destructive/90">
+                Eliminar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 };

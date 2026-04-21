@@ -7,16 +7,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { PhotoUploader } from "@/components/players/PhotoUploader";
 import { EmptyState } from "@/components/ui/empty-state";
-import {
-  usePlayers, useCreatePlayer, useUpdatePlayer, useDeletePlayer, type Player,
-} from "@/hooks/usePlayers";
+import { usePlayers, useCreatePlayer, useUpdatePlayer, useDeletePlayer, type Player } from "@/hooks/usePlayers";
 import { useRanking } from "@/hooks/useRanking";
 import { getAchievements } from "@/lib/achievements";
 
@@ -40,7 +44,7 @@ const positionColors: Record<string, string> = {
   delantero: "bg-destructive/15 text-destructive border-destructive/30",
 };
 
-const Jugadores = () => {
+const Jugadores = ({ readOnly = false }: { readOnly?: boolean }) => {
   const { data: players = [], isLoading } = usePlayers();
   const { data: ranking = [] } = useRanking();
   const createMut = useCreatePlayer();
@@ -59,7 +63,7 @@ const Jugadores = () => {
   });
 
   const statsByPlayer = useMemo(() => {
-    const m = new Map<string, typeof ranking[number]>();
+    const m = new Map<string, (typeof ranking)[number]>();
     ranking.forEach((r) => m.set(r.player_id, r));
     return m;
   }, [ranking]);
@@ -129,19 +133,21 @@ const Jugadores = () => {
           <h1 className="text-2xl md:text-3xl font-black">Jugadores</h1>
           <p className="text-sm text-muted-foreground">{players.length} en plantel</p>
         </div>
-        <Button onClick={openNew} className="shadow-glow">
-          <Plus className="h-4 w-4 mr-1" /> Nuevo
-        </Button>
+        {!readOnly && (
+          <Button onClick={openNew} className="shadow-glow">
+            <Plus className="h-4 w-4 mr-1" /> Nuevo
+          </Button>
+        )}
       </header>
 
       {isLoading ? (
-        <p className="text-muted-foreground text-sm">Cargando…</p>
+        <p className="text-muted-foreground text-sm">Cargando...</p>
       ) : players.length === 0 ? (
         <EmptyState
           icon={Users}
-          title="Sin jugadores todavía"
-          description="Empezá agregando los integrantes del grupo."
-          action={{ label: "Agregar primer jugador", onClick: openNew }}
+          title="Sin jugadores todavia"
+          description={readOnly ? "No hay jugadores cargados." : "Empieza agregando los integrantes del grupo."}
+          action={readOnly ? undefined : { label: "Agregar primer jugador", onClick: openNew }}
         />
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -194,95 +200,99 @@ const Jugadores = () => {
                   </div>
                 )}
 
-                <div className="flex gap-1 mt-3 pt-3 border-t border-border/40">
-                  <Button variant="ghost" size="sm" className="flex-1" onClick={() => openEdit(p)}>
-                    <Pencil className="h-3 w-3 mr-1" /> Editar
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => setConfirmDelete(p)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
+                {!readOnly && (
+                  <div className="flex gap-1 mt-3 pt-3 border-t border-border/40">
+                    <Button variant="ghost" size="sm" className="flex-1" onClick={() => openEdit(p)}>
+                      <Pencil className="h-3 w-3 mr-1" /> Editar
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => setConfirmDelete(p)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       )}
 
-      {/* Form dialog */}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editing ? "Editar jugador" : "Nuevo jugador"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <PhotoUploader
-              nombre={form.apodo || form.nombre}
-              currentUrl={form.foto_url}
-              onChange={(url) => setForm({ ...form, foto_url: url })}
-            />
-            <div className="space-y-2">
-              <Label>Nombre completo *</Label>
-              <Input
-                value={form.nombre}
-                onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-                placeholder="Juan Pérez"
-                maxLength={60}
-                autoFocus
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Apodo</Label>
-              <Input
-                value={form.apodo}
-                onChange={(e) => setForm({ ...form, apodo: e.target.value })}
-                placeholder="El Pibe"
-                maxLength={30}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Posición</Label>
-              <Select value={form.posicion} onValueChange={(v) => setForm({ ...form, posicion: v })}>
-                <SelectTrigger><SelectValue placeholder="Sin definir" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="arquero">Arquero</SelectItem>
-                  <SelectItem value="defensor">Defensor</SelectItem>
-                  <SelectItem value="mediocampista">Mediocampista</SelectItem>
-                  <SelectItem value="delantero">Delantero</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button onClick={onSubmit} disabled={createMut.isPending || updateMut.isPending}>
-              {editing ? "Guardar cambios" : "Crear jugador"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {!readOnly && (
+        <>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editing ? "Editar jugador" : "Nuevo jugador"}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <PhotoUploader
+                  nombre={form.apodo || form.nombre}
+                  currentUrl={form.foto_url}
+                  onChange={(url) => setForm({ ...form, foto_url: url })}
+                />
+                <div className="space-y-2">
+                  <Label>Nombre completo *</Label>
+                  <Input
+                    value={form.nombre}
+                    onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                    placeholder="Juan Perez"
+                    maxLength={60}
+                    autoFocus
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Apodo</Label>
+                  <Input
+                    value={form.apodo}
+                    onChange={(e) => setForm({ ...form, apodo: e.target.value })}
+                    placeholder="El Pibe"
+                    maxLength={30}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Posicion</Label>
+                  <Select value={form.posicion} onValueChange={(v) => setForm({ ...form, posicion: v })}>
+                    <SelectTrigger><SelectValue placeholder="Sin definir" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="arquero">Arquero</SelectItem>
+                      <SelectItem value="defensor">Defensor</SelectItem>
+                      <SelectItem value="mediocampista">Mediocampista</SelectItem>
+                      <SelectItem value="delantero">Delantero</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+                <Button onClick={onSubmit} disabled={createMut.isPending || updateMut.isPending}>
+                  {editing ? "Guardar cambios" : "Crear jugador"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
-      {/* Delete confirm */}
-      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Dar de baja a {confirmDelete?.apodo ?? confirmDelete?.nombre}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Se ocultará del plantel pero se mantendrán sus estadísticas históricas.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={onDelete} className="bg-destructive hover:bg-destructive/90">
-              Dar de baja
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Dar de baja a {confirmDelete?.apodo ?? confirmDelete?.nombre}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Se ocultara del plantel pero se mantendran sus estadisticas historicas.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={onDelete} className="bg-destructive hover:bg-destructive/90">
+                  Dar de baja
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      )}
     </div>
   );
 };

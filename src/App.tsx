@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { HashRouter, Navigate, Route, Routes, useParams } from "react-router-dom";
+import { HashRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -22,11 +22,6 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const LegacyMatchRedirect = () => {
-  const { id } = useParams<{ id: string }>();
-  return <Navigate to={id ? `/admin/partidos/${id}` : "/admin/partidos"} replace />;
-};
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -40,24 +35,23 @@ const App = () => (
 
             <Route element={<AppLayout />}>
               <Route path="/" element={<Index />} />
+              <Route path="/partidos" element={<Partidos basePath="/partidos" readOnly />} />
+              <Route path="/partidos/:id" element={<PartidoDetalle backPath="/partidos" readOnly />} />
+              <Route path="/jugadores" element={<Jugadores readOnly />} />
               <Route path="/ranking" element={<Ranking />} />
               <Route path="/votacion" element={<Votacion />} />
+              <Route path="/fondo" element={<Fondo readOnly />} />
+              <Route path="/multas" element={<Multas readOnly />} />
             </Route>
-
-            <Route path="/partidos" element={<Navigate to="/admin/partidos" replace />} />
-            <Route path="/partidos/:id" element={<LegacyMatchRedirect />} />
-            <Route path="/jugadores" element={<Navigate to="/admin/jugadores" replace />} />
-            <Route path="/fondo" element={<Navigate to="/admin/fondo" replace />} />
-            <Route path="/multas" element={<Navigate to="/admin/multas" replace />} />
 
             <Route element={<RequireAdmin />}>
               <Route element={<AdminLayout />}>
                 <Route path="/admin" element={<AdminDashboard />} />
-                <Route path="/admin/partidos" element={<Partidos basePath="/admin/partidos" />} />
-                <Route path="/admin/partidos/:id" element={<PartidoDetalle backPath="/admin/partidos" />} />
-                <Route path="/admin/jugadores" element={<Jugadores />} />
-                <Route path="/admin/fondo" element={<Fondo />} />
-                <Route path="/admin/multas" element={<Multas />} />
+                <Route path="/admin/partidos" element={<Partidos basePath="/admin/partidos" readOnly={false} />} />
+                <Route path="/admin/partidos/:id" element={<PartidoDetalle backPath="/admin/partidos" readOnly={false} />} />
+                <Route path="/admin/jugadores" element={<Jugadores readOnly={false} />} />
+                <Route path="/admin/fondo" element={<Fondo readOnly={false} />} />
+                <Route path="/admin/multas" element={<Multas readOnly={false} />} />
               </Route>
             </Route>
 

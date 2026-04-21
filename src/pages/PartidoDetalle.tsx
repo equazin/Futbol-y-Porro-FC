@@ -44,7 +44,7 @@ interface Row {
   presente: boolean;
 }
 
-const PartidoDetalle = ({ backPath = "/admin/partidos" }: { backPath?: string }) => {
+const PartidoDetalle = ({ backPath = "/admin/partidos", readOnly = false }: { backPath?: string; readOnly?: boolean }) => {
   const { id } = useParams<{ id: string }>();
   const { data: match, isLoading: loadingM } = useMatch(id);
   const { data: players = [] } = usePlayers();
@@ -272,7 +272,7 @@ const PartidoDetalle = ({ backPath = "/admin/partidos" }: { backPath?: string })
               <p className="text-xs text-muted-foreground">
                 Marca quienes juegan y los equipos se arman automaticamente con esos jugadores.
               </p>
-              <Button type="button" size="sm" variant="outline" onClick={onBalance} className="border-mvp/40 hover:bg-mvp/10 shrink-0">
+              <Button type="button" size="sm" variant="outline" disabled={readOnly} onClick={onBalance} className="border-mvp/40 hover:bg-mvp/10 shrink-0">
                 <Shuffle className="h-3.5 w-3.5 mr-1.5" />
                 Rebalancear
               </Button>
@@ -285,6 +285,7 @@ const PartidoDetalle = ({ backPath = "/admin/partidos" }: { backPath?: string })
                   type="number"
                   min={0}
                   step={100}
+                  disabled={readOnly}
                   value={aportePorJugador}
                   onChange={(e) => setAportePorJugador(Math.max(0, Number(e.target.value) || 0))}
                 />
@@ -307,6 +308,7 @@ const PartidoDetalle = ({ backPath = "/admin/partidos" }: { backPath?: string })
                   <div key={p.id} className="flex items-center gap-2 p-2 rounded-lg border border-border/40 bg-card/50">
                     <Checkbox
                       checked={r.presente}
+                      disabled={readOnly}
                       onCheckedChange={(v) => toggleParticipa(p.id, !!v)}
                     />
                     <PlayerAvatar nombre={p.nombre} foto_url={p.foto_url} size="md" />
@@ -320,6 +322,7 @@ const PartidoDetalle = ({ backPath = "/admin/partidos" }: { backPath?: string })
                       <div className="flex gap-1">
                         <button
                           type="button"
+                          disabled={readOnly}
                           onClick={() => setEquipo(p.id, "A")}
                           className={`h-8 w-8 rounded-md text-xs font-black transition-smooth ${
                             r.equipo === "A" ? "bg-primary text-primary-foreground shadow-glow" : "bg-secondary text-muted-foreground hover:bg-secondary/80"
@@ -329,6 +332,7 @@ const PartidoDetalle = ({ backPath = "/admin/partidos" }: { backPath?: string })
                         </button>
                         <button
                           type="button"
+                          disabled={readOnly}
                           onClick={() => setEquipo(p.id, "B")}
                           className={`h-8 w-8 rounded-md text-xs font-black transition-smooth ${
                             r.equipo === "B" ? "bg-stats text-stats-foreground" : "bg-secondary text-muted-foreground hover:bg-secondary/80"
@@ -371,6 +375,7 @@ const PartidoDetalle = ({ backPath = "/admin/partidos" }: { backPath?: string })
                             <Input
                               type="number"
                               min={0}
+                              disabled={readOnly}
                               value={r.goles}
                               onChange={(e) => update(r.player_id, { goles: Math.max(0, Number(e.target.value) || 0) })}
                               className="h-9"
@@ -381,6 +386,7 @@ const PartidoDetalle = ({ backPath = "/admin/partidos" }: { backPath?: string })
                             <Input
                               type="number"
                               min={0}
+                              disabled={readOnly}
                               value={r.asistencias}
                               onChange={(e) => update(r.player_id, { asistencias: Math.max(0, Number(e.target.value) || 0) })}
                               className="h-9"
@@ -393,6 +399,7 @@ const PartidoDetalle = ({ backPath = "/admin/partidos" }: { backPath?: string })
                               min={1}
                               max={10}
                               step={0.5}
+                              disabled={readOnly}
                               value={r.calificacion ?? ""}
                               onChange={(e) => {
                                 const v = e.target.value;
@@ -411,10 +418,12 @@ const PartidoDetalle = ({ backPath = "/admin/partidos" }: { backPath?: string })
             </div>
           ))}
 
-          <Button onClick={onSavePlanteles} disabled={saveMut.isPending} className="w-full shadow-glow" size="lg">
-            <Save className="h-4 w-4 mr-2" />
-            Guardar planteles & stats
-          </Button>
+          {!readOnly && (
+            <Button onClick={onSavePlanteles} disabled={saveMut.isPending} className="w-full shadow-glow" size="lg">
+              <Save className="h-4 w-4 mr-2" />
+              Guardar planteles & stats
+            </Button>
+          )}
         </TabsContent>
 
         <TabsContent value="resultado" className="space-y-4 mt-4">
@@ -426,6 +435,7 @@ const PartidoDetalle = ({ backPath = "/admin/partidos" }: { backPath?: string })
                 <Input
                   type="number"
                   min={0}
+                  disabled={readOnly}
                   value={scoreA}
                   onChange={(e) => setScoreA(Math.max(0, Number(e.target.value) || 0))}
                   className="h-14 text-3xl font-black text-center"
@@ -436,6 +446,7 @@ const PartidoDetalle = ({ backPath = "/admin/partidos" }: { backPath?: string })
                 <Input
                   type="number"
                   min={0}
+                  disabled={readOnly}
                   value={scoreB}
                   onChange={(e) => setScoreB(Math.max(0, Number(e.target.value) || 0))}
                   className="h-14 text-3xl font-black text-center"
@@ -453,7 +464,7 @@ const PartidoDetalle = ({ backPath = "/admin/partidos" }: { backPath?: string })
                 <Label className="flex items-center gap-1">
                   <Star className="h-3 w-3 text-mvp" /> MVP del partido
                 </Label>
-                <Select value={mvpId} onValueChange={setMvpId}>
+                <Select value={mvpId} onValueChange={setMvpId} disabled={readOnly}>
                   <SelectTrigger>
                     <SelectValue placeholder="Sin MVP designado" />
                   </SelectTrigger>
@@ -473,7 +484,7 @@ const PartidoDetalle = ({ backPath = "/admin/partidos" }: { backPath?: string })
                 <Label className="flex items-center gap-1">
                   <Goal className="h-3 w-3 text-stats" /> Gol de la fecha
                 </Label>
-                <Select value={golFechaId} onValueChange={setGolFechaId}>
+                <Select value={golFechaId} onValueChange={setGolFechaId} disabled={readOnly}>
                   <SelectTrigger>
                     <SelectValue placeholder="Sin gol designado" />
                   </SelectTrigger>
@@ -493,7 +504,7 @@ const PartidoDetalle = ({ backPath = "/admin/partidos" }: { backPath?: string })
               </div>
               <div className="space-y-2">
                 <Label>Estado del partido</Label>
-                <Select value={estado} onValueChange={setEstado}>
+                <Select value={estado} onValueChange={setEstado} disabled={readOnly}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -510,10 +521,12 @@ const PartidoDetalle = ({ backPath = "/admin/partidos" }: { backPath?: string })
             </div>
           </div>
 
-          <Button onClick={onSaveResultado} disabled={updateMut.isPending} className="w-full shadow-glow" size="lg">
-            <Save className="h-4 w-4 mr-2" />
-            Guardar resultado
-          </Button>
+          {!readOnly && (
+            <Button onClick={onSaveResultado} disabled={updateMut.isPending} className="w-full shadow-glow" size="lg">
+              <Save className="h-4 w-4 mr-2" />
+              Guardar resultado
+            </Button>
+          )}
 
           <div className="rounded-xl border border-mvp/30 bg-gradient-card p-5 space-y-4">
             <div className="flex items-center justify-between gap-2">
@@ -586,33 +599,39 @@ const PartidoDetalle = ({ backPath = "/admin/partidos" }: { backPath?: string })
               </div>
             )}
 
-            <Button onClick={() => setConfirmClose(true)} disabled={estado === "cerrado" || closeMut.isPending} variant="outline" className="w-full border-mvp/40 hover:bg-mvp/10">
-              <Lock className="h-4 w-4 mr-2" />
-              {estado === "cerrado" ? "Votacion cerrada" : "Cerrar votacion y aplicar ganadores"}
-            </Button>
-            <p className="text-[11px] text-muted-foreground text-center">
-              Al cerrar se asignan automaticamente MVP y Gol de la fecha segun los votos. El partido pasa a estado <b>cerrado</b> y suma al ranking.
-            </p>
+            {!readOnly && (
+              <>
+                <Button onClick={() => setConfirmClose(true)} disabled={estado === "cerrado" || closeMut.isPending} variant="outline" className="w-full border-mvp/40 hover:bg-mvp/10">
+                  <Lock className="h-4 w-4 mr-2" />
+                  {estado === "cerrado" ? "Votacion cerrada" : "Cerrar votacion y aplicar ganadores"}
+                </Button>
+                <p className="text-[11px] text-muted-foreground text-center">
+                  Al cerrar se asignan automaticamente MVP y Gol de la fecha segun los votos. El partido pasa a estado <b>cerrado</b> y suma al ranking.
+                </p>
+              </>
+            )}
           </div>
         </TabsContent>
       </Tabs>
 
-      <AlertDialog open={confirmClose} onOpenChange={setConfirmClose}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cerrar la votacion?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Se asignaran MVP y Gol de la fecha segun los {totalVoters} {totalVoters === 1 ? "voto" : "votos"} actuales y el partido quedara <b>cerrado</b> (no se podra volver a votar). Esta accion se puede deshacer cambiando el estado manualmente.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={onCloseVoting} className="bg-mvp text-mvp-foreground hover:bg-mvp/90">
-              Cerrar votacion
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {!readOnly && (
+        <AlertDialog open={confirmClose} onOpenChange={setConfirmClose}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Cerrar la votacion?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Se asignaran MVP y Gol de la fecha segun los {totalVoters} {totalVoters === 1 ? "voto" : "votos"} actuales y el partido quedara <b>cerrado</b> (no se podra volver a votar). Esta accion se puede deshacer cambiando el estado manualmente.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={onCloseVoting} className="bg-mvp text-mvp-foreground hover:bg-mvp/90">
+                Cerrar votacion
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 };

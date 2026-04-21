@@ -42,7 +42,7 @@ type MatchGroup = {
   progreso: number;
 };
 
-const Fondo = () => {
+const Fondo = ({ readOnly = false }: { readOnly?: boolean }) => {
   const qc = useQueryClient();
   const [filter, setFilter] = useState<"all" | "pending" | "paid">("all");
 
@@ -194,7 +194,9 @@ const Fondo = () => {
                 <Button
                   variant="ghost"
                   size="sm"
+                  disabled={readOnly}
                   onClick={async () => {
+                    if (readOnly) return;
                     const setPaid = group.pendingCount > 0;
                     const targets = group.rows.filter((r) => r.pagado !== setPaid);
                     await Promise.all(targets.map((r) => togglePagado.mutateAsync({ id: r.id, pagado: setPaid })));
@@ -208,7 +210,7 @@ const Fondo = () => {
               <div className="divide-y divide-border/30">
                 {group.rows.map((c) => (
                   <label key={c.id} className="flex items-center gap-3 p-3 hover:bg-secondary/30 cursor-pointer transition-smooth">
-                    <Checkbox checked={c.pagado} onCheckedChange={(v) => togglePagado.mutate({ id: c.id, pagado: !!v })} />
+                    <Checkbox checked={c.pagado} disabled={readOnly} onCheckedChange={(v) => !readOnly && togglePagado.mutate({ id: c.id, pagado: !!v })} />
                     <PlayerAvatar nombre={c.player?.nombre ?? "?"} foto_url={c.player?.foto_url} size="sm" />
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-sm truncate">{c.player?.apodo ?? c.player?.nombre ?? "Jugador eliminado"}</p>

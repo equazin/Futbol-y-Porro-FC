@@ -23,7 +23,7 @@ const motivos = [
   { value: "Otro", monto: 500 },
 ];
 
-export const Multas = () => {
+const Multas = ({ readOnly = false }: { readOnly?: boolean }) => {
   const { data: players = [] } = usePlayers();
   const { data: fines = [], isLoading } = useFines();
   const createMut = useCreateFine();
@@ -45,11 +45,11 @@ export const Multas = () => {
 
   const onCreate = async () => {
     if (!form.player_id) {
-      toast.error("Elegí un jugador");
+      toast.error("Elegi un jugador");
       return;
     }
     if (!form.motivo.trim()) {
-      toast.error("Indicá un motivo");
+      toast.error("Indica un motivo");
       return;
     }
     try {
@@ -78,9 +78,11 @@ export const Multas = () => {
             Faltas, tardanzas y otras sanciones que suman al fondo
           </p>
         </div>
-        <Button onClick={() => setOpen(true)} className="shadow-glow">
-          <Plus className="h-4 w-4 mr-1" /> Nueva
-        </Button>
+        {!readOnly && (
+          <Button onClick={() => setOpen(true)} className="shadow-glow">
+            <Plus className="h-4 w-4 mr-1" /> Nueva
+          </Button>
+        )}
       </header>
 
       <div className="grid grid-cols-3 gap-3">
@@ -99,13 +101,13 @@ export const Multas = () => {
       </div>
 
       {isLoading ? (
-        <p className="text-muted-foreground text-sm">Cargando…</p>
+        <p className="text-muted-foreground text-sm">Cargando...</p>
       ) : fines.length === 0 ? (
         <EmptyState
           icon={Receipt}
           title="Sin multas registradas"
-          description="Cuando alguien falte sin avisar, llegue tarde o se olvide algo, registrá la multa acá."
-          action={{ label: "Registrar primera multa", onClick: () => setOpen(true) }}
+          description={readOnly ? "No hay multas registradas." : "Cuando alguien falte sin avisar, llegue tarde o se olvide algo, registra la multa aca."}
+          action={readOnly ? undefined : { label: "Registrar primera multa", onClick: () => setOpen(true) }}
         />
       ) : (
         <div className="rounded-2xl border border-border/60 bg-gradient-card overflow-hidden divide-y divide-border/30">
@@ -113,13 +115,10 @@ export const Multas = () => {
             <div key={f.id} className="flex items-center gap-3 p-3 hover:bg-secondary/30 transition-smooth">
               <Checkbox
                 checked={f.pagada}
-                onCheckedChange={(v) => toggleMut.mutate({ id: f.id, pagada: !!v })}
+                disabled={readOnly}
+                onCheckedChange={(v) => !readOnly && toggleMut.mutate({ id: f.id, pagada: !!v })}
               />
-              <PlayerAvatar
-                nombre={f.player?.nombre ?? "?"}
-                foto_url={f.player?.foto_url ?? null}
-                size="sm"
-              />
+              <PlayerAvatar nombre={f.player?.nombre ?? "?"} foto_url={f.player?.foto_url ?? null} size="sm" />
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-sm truncate">
                   {f.player?.apodo ?? f.player?.nombre ?? "Jugador eliminado"}
@@ -131,73 +130,77 @@ export const Multas = () => {
               <span className={`font-black text-sm ${f.pagada ? "text-mvp" : "text-destructive"}`}>
                 {formatARS(Number(f.monto))}
               </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-destructive hover:bg-destructive/10 h-8 w-8"
-                onClick={() => deleteMut.mutate(f.id)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              {!readOnly && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-destructive hover:bg-destructive/10 h-8 w-8"
+                  onClick={() => deleteMut.mutate(f.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           ))}
         </div>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" /> Nueva multa
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>Jugador *</Label>
-              <Select value={form.player_id} onValueChange={(v) => setForm({ ...form, player_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Elegí jugador" /></SelectTrigger>
-                <SelectContent>
-                  {players.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.apodo ?? p.nombre}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+      {!readOnly && (
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-destructive" /> Nueva multa
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label>Jugador *</Label>
+                <Select value={form.player_id} onValueChange={(v) => setForm({ ...form, player_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Elegi jugador" /></SelectTrigger>
+                  <SelectContent>
+                    {players.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.apodo ?? p.nombre}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Motivo</Label>
+                <Select
+                  value={form.motivo}
+                  onValueChange={(v) => {
+                    const preset = motivos.find((m) => m.value === v);
+                    setForm({ ...form, motivo: v, monto: preset?.monto ?? form.monto });
+                  }}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {motivos.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>
+                        {m.value} ({formatARS(m.monto)})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Monto</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={form.monto}
+                  onChange={(e) => setForm({ ...form, monto: Math.max(0, Number(e.target.value) || 0) })}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Motivo</Label>
-              <Select
-                value={form.motivo}
-                onValueChange={(v) => {
-                  const preset = motivos.find((m) => m.value === v);
-                  setForm({ ...form, motivo: v, monto: preset?.monto ?? form.monto });
-                }}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {motivos.map((m) => (
-                    <SelectItem key={m.value} value={m.value}>
-                      {m.value} ({formatARS(m.monto)})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Monto</Label>
-              <Input
-                type="number"
-                min={0}
-                value={form.monto}
-                onChange={(e) => setForm({ ...form, monto: Math.max(0, Number(e.target.value) || 0) })}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button onClick={onCreate} disabled={createMut.isPending}>Registrar multa</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+              <Button onClick={onCreate} disabled={createMut.isPending}>Registrar multa</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };
