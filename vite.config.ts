@@ -5,6 +5,7 @@ import path from "path";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   base: mode === "production" ? "/Futbol-y-Porro-FC/" : "/",
+  build: { outDir: "docs" },
   server: {
     host: "::",
     port: 5173,
