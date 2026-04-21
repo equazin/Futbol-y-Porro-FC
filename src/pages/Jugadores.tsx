@@ -145,38 +145,71 @@ const Jugadores = () => {
         />
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {players.map((p) => (
-            <div
-              key={p.id}
-              className="group relative rounded-xl border border-border/60 bg-gradient-card p-4 transition-smooth hover:border-primary/40 hover:shadow-glow"
-            >
-              <div className="flex items-center gap-3">
-                <PlayerAvatar nombre={p.nombre} foto_url={p.foto_url} size="lg" />
-                <div className="flex-1 min-w-0">
-                  <p className="font-black truncate">{p.apodo ?? p.nombre}</p>
-                  {p.apodo && <p className="text-xs text-muted-foreground truncate">{p.nombre}</p>}
-                  {p.posicion && (
-                    <span className={`inline-block mt-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${positionColors[p.posicion]}`}>
-                      {positionLabels[p.posicion]}
-                    </span>
-                  )}
+          {players.map((p) => {
+            const stats = statsByPlayer.get(p.id);
+            const achievements = stats ? getAchievements(stats) : [];
+            return (
+              <div
+                key={p.id}
+                className="group relative rounded-xl border border-border/60 bg-gradient-card p-4 transition-smooth hover:border-primary/40 hover:shadow-glow"
+              >
+                <div className="flex items-center gap-3">
+                  <PlayerAvatar nombre={p.nombre} foto_url={p.foto_url} size="lg" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-black truncate">{p.apodo ?? p.nombre}</p>
+                    {p.apodo && <p className="text-xs text-muted-foreground truncate">{p.nombre}</p>}
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      {p.posicion && (
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${positionColors[p.posicion]}`}>
+                          {positionLabels[p.posicion]}
+                        </span>
+                      )}
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border border-border bg-secondary text-muted-foreground">
+                        ELO {Math.round(Number((p as any).elo ?? 1000))}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {achievements.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-3">
+                    {achievements.slice(0, 4).map((a) => {
+                      const Icon = a.icon;
+                      return (
+                        <div
+                          key={a.id}
+                          title={a.description}
+                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-bold ${a.bg} ${a.color}`}
+                        >
+                          <Icon className="h-3 w-3" />
+                          {a.label}
+                        </div>
+                      );
+                    })}
+                    {achievements.length > 4 && (
+                      <span className="text-[10px] text-muted-foreground self-center">
+                        +{achievements.length - 4}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex gap-1 mt-3 pt-3 border-t border-border/40">
+                  <Button variant="ghost" size="sm" className="flex-1" onClick={() => openEdit(p)}>
+                    <Pencil className="h-3 w-3 mr-1" /> Editar
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => setConfirmDelete(p)}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
                 </div>
               </div>
-              <div className="flex gap-1 mt-3 pt-3 border-t border-border/40">
-                <Button variant="ghost" size="sm" className="flex-1" onClick={() => openEdit(p)}>
-                  <Pencil className="h-3 w-3 mr-1" /> Editar
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                  onClick={() => setConfirmDelete(p)}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
