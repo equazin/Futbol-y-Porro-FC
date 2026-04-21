@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Save, Star, Goal, Sparkles } from "lucide-react";
+import { ArrowLeft, Save, Star, Goal, Sparkles, Vote, Lock } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
@@ -10,12 +10,17 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { usePlayers } from "@/hooks/usePlayers";
 import {
-  useMatch, useMatchPlayers, useSaveMatchPlayers, useUpdateMatch,
+  useMatch, useMatchPlayers, useSaveMatchPlayers, useUpdateMatch, useCloseMatchVoting,
   type MatchPlayerInput,
 } from "@/hooks/useMatches";
+import { useVotes, tallyVotes } from "@/hooks/useVotes";
 
 interface Row {
   player_id: string;
