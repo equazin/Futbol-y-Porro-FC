@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Save, Star, Goal, Sparkles, Vote, Lock } from "lucide-react";
+import { ArrowLeft, Save, Star, Goal, Sparkles, Vote, Lock, Shuffle } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
@@ -21,6 +21,7 @@ import {
   type MatchPlayerInput,
 } from "@/hooks/useMatches";
 import { useVotes, tallyVotes } from "@/hooks/useVotes";
+import { balanceTeams } from "@/lib/elo";
 
 interface Row {
   player_id: string;
@@ -102,6 +103,39 @@ const PartidoDetalle = () => {
       ...prev,
       [pid]: { ...prev[pid], equipo: eq, presente: eq !== null },
     }));
+  };
+
+  /**
+   * Auto-arma equipos balanceados a partir de los jugadores ya marcados como presentes
+   * (los que tienen equipo A o B). Si no hay ninguno, usa todos los activos.
+   */
+  const onBalance = () => {
+    const candidates = (Object.values(rows).filter((r) => r.equipo !== null).length > 0)
+      ? Object.values(rows).filter((r) => r.equipo !== null)
+      : Object.values(rows);
+
+    if (candidates.length < 2) {
+      toast.error("Marcá al menos 2 jugadores como presentes");
+      return;
+    }
+
+    const lite = candidates.map((r) => {
+      const p = players.find((pl) => pl.id === r.player_id)!;
+      return { id: p.id, elo: Number((p as any).elo ?? 1000), posicion: p.posicion };
+    });
+    const { A, B } = balanceTeams(lite);
+
+    setRows((prev) => {
+      const next = { ...prev };
+      // Reset solo los candidatos
+      candidates.forEach((r) => {
+        next[r.player_id] = { ...next[r.player_id], equipo: null, presente: false };
+      });
+      A.forEach((pid) => { next[pid] = { ...next[pid], equipo: "A", presente: true }; });
+      B.forEach((pid) => { next[pid] = { ...next[pid], equipo: "B", presente: true }; });
+      return next;
+    });
+    toast.success(`Equipos auto-armados: ${A.length} vs ${B.length}`);
   };
 
   const onSavePlanteles = async () => {
@@ -188,9 +222,21 @@ const PartidoDetalle = () => {
         {/* PLANTELES */}
         <TabsContent value="planteles" className="space-y-4 mt-4">
           <div className="rounded-xl border border-border/60 bg-gradient-card p-4">
-            <p className="text-xs text-muted-foreground mb-3">
-              Asigná cada jugador a un equipo (A o B). Quien quede sin equipo se considera ausente.
-            </p>
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <p className="text-xs text-muted-foreground flex-1">
+                Asigná cada jugador a un equipo (A o B). Quien quede sin equipo se considera ausente.
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={onBalance}
+                className="border-mvp/40 hover:bg-mvp/10 shrink-0"
+              >
+                <Shuffle className="h-3.5 w-3.5 mr-1.5" />
+                Auto-armar
+              </Button>
+            </div>
             <div className="grid sm:grid-cols-2 gap-2">
               {players.map((p) => {
                 const r = rows[p.id];

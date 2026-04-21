@@ -66,6 +66,39 @@ export type Database = {
           },
         ]
       }
+      fines: {
+        Row: {
+          created_at: string
+          fecha: string
+          id: string
+          match_id: string | null
+          monto: number
+          motivo: string
+          pagada: boolean
+          player_id: string
+        }
+        Insert: {
+          created_at?: string
+          fecha?: string
+          id?: string
+          match_id?: string | null
+          monto?: number
+          motivo: string
+          pagada?: boolean
+          player_id: string
+        }
+        Update: {
+          created_at?: string
+          fecha?: string
+          id?: string
+          match_id?: string | null
+          monto?: number
+          motivo?: string
+          pagada?: boolean
+          player_id?: string
+        }
+        Relationships: []
+      }
       goal_events: {
         Row: {
           created_at: string
@@ -258,6 +291,7 @@ export type Database = {
           activo: boolean
           apodo: string | null
           created_at: string
+          elo: number
           fecha_alta: string
           foto_url: string | null
           id: string
@@ -269,6 +303,7 @@ export type Database = {
           activo?: boolean
           apodo?: string | null
           created_at?: string
+          elo?: number
           fecha_alta?: string
           foto_url?: string | null
           id?: string
@@ -280,6 +315,7 @@ export type Database = {
           activo?: boolean
           apodo?: string | null
           created_at?: string
+          elo?: number
           fecha_alta?: string
           foto_url?: string | null
           id?: string
@@ -358,9 +394,11 @@ export type Database = {
         Row: {
           apodo: string | null
           asistencias: number | null
+          elo: number | null
           foto_url: string | null
           gol_fecha_count: number | null
           goles: number | null
+          multas_pendientes: number | null
           mvp_count: number | null
           nombre: string | null
           partidos_jugados: number | null

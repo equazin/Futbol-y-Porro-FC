@@ -1,11 +1,16 @@
-import { Trophy, Goal, Star, Sparkles, Award } from "lucide-react";
+import { Trophy, Goal, Star, Award, Heart } from "lucide-react";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { useRanking } from "@/hooks/useRanking";
+import { useChemistry } from "@/hooks/useChemistry";
+import { usePlayers } from "@/hooks/usePlayers";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatARS, FONDO } from "@/lib/scoring";
 
 const Ranking = () => {
   const { data: ranking = [], isLoading } = useRanking();
+  const { data: chemistry = [] } = useChemistry(2);
+  const { data: players = [] } = usePlayers();
+  const playerById = (id: string) => players.find((p) => p.id === id);
 
   if (isLoading) return <p className="text-muted-foreground">Cargando…</p>;
 
@@ -106,6 +111,40 @@ const Ranking = () => {
           ))
         ) : null}
       </div>
+
+      {/* QUÍMICA */}
+      {chemistry.length > 0 && (
+        <div className="rounded-xl border border-mvp/30 bg-gradient-card p-4">
+          <h3 className="font-black mb-3 flex items-center gap-2">
+            <Heart className="h-4 w-4 text-mvp" /> Mejores duplas (química)
+          </h3>
+          <p className="text-xs text-muted-foreground mb-3">
+            % de victorias jugando juntos en el mismo equipo (mín. 2 partidos).
+          </p>
+          <div className="space-y-2">
+            {chemistry.slice(0, 5).map((c) => {
+              const a = playerById(c.player_a_id);
+              const b = playerById(c.player_b_id);
+              if (!a || !b) return null;
+              return (
+                <div key={`${c.player_a_id}-${c.player_b_id}`} className="flex items-center gap-3 p-2 rounded-lg bg-card/50">
+                  <div className="flex -space-x-2">
+                    <PlayerAvatar nombre={a.nombre} foto_url={a.foto_url} size="sm" />
+                    <PlayerAvatar nombre={b.nombre} foto_url={b.foto_url} size="sm" />
+                  </div>
+                  <p className="flex-1 text-sm font-bold truncate">
+                    {a.apodo ?? a.nombre} <span className="text-muted-foreground">+</span> {b.apodo ?? b.nombre}
+                  </p>
+                  <div className="text-right">
+                    <p className="font-black text-mvp">{Math.round(c.win_rate * 100)}%</p>
+                    <p className="text-[10px] text-muted-foreground">{c.ganados}G {c.empatados}E {c.perdidos}P</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* PREMIOS INFO */}
       <div className="rounded-xl border border-border/60 bg-gradient-card p-4">
