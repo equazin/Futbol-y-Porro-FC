@@ -139,6 +139,26 @@ const PartidoDetalle = () => {
     }
   };
 
+  const onCloseVoting = async () => {
+    if (!id) return;
+    try {
+      const res = await closeMut.mutateAsync(id);
+      const mvpName = players.find((p) => p.id === res.mvp)?.apodo ?? players.find((p) => p.id === res.mvp)?.nombre;
+      const golName = players.find((p) => p.id === res.gol)?.apodo ?? players.find((p) => p.id === res.gol)?.nombre;
+      toast.success(`Votación cerrada · MVP: ${mvpName ?? "—"} · Gol: ${golName ?? "—"}`);
+      setConfirmClose(false);
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
+  const mvpTally = useMemo(() => tallyVotes(votes, "mvp"), [votes]);
+  const goalTally = useMemo(() => tallyVotes(votes, "goal"), [votes]);
+  const totalVoters = useMemo(
+    () => new Set(votes.map((v) => v.voter_player_id)).size,
+    [votes],
+  );
+
   if (loadingM || !match) {
     return <p className="text-muted-foreground">Cargando partido…</p>;
   }
