@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Plus, Pencil, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -12,10 +12,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
+import { PhotoUploader } from "@/components/players/PhotoUploader";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   usePlayers, useCreatePlayer, useUpdatePlayer, useDeletePlayer, type Player,
 } from "@/hooks/usePlayers";
+import { useRanking } from "@/hooks/useRanking";
+import { getAchievements } from "@/lib/achievements";
 
 const playerSchema = z.object({
   nombre: z.string().trim().min(2, "Nombre muy corto").max(60),
