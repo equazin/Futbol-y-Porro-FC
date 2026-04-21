@@ -140,28 +140,35 @@ export const useUpdateMatch = () => {
 
 /**
  * Cierra la votación de un partido:
- * 1) Cuenta votos MVP y Gol
- * 2) Aplica desempates: más votos → más goles → más asistencias
- * 3) Asigna mvp_player_id y gol_de_la_fecha_player_id en matches
- * 4) Marca el partido como "cerrado"
+ * 1) Cuenta votos MVP y Gol y resuelve desempates
+ * 2) Recalcula ELO de todos los jugadores presentes según el resultado del marcador
+ * 3) Asigna mvp/gol_fecha y marca el partido como "cerrado"
  */
 export const useCloseMatchVoting = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (matchId: string) => {
-      const [votesRes, mpRes] = await Promise.all([
+      const [votesRes, mpRes, matchRes] = await Promise.all([
         supabase.from("votes").select("*").eq("match_id", matchId),
-        supabase.from("match_players").select("player_id, goles, asistencias, presente").eq("match_id", matchId),
+        supabase
+          .from("match_players")
+          .select("player_id, equipo, goles, asistencias, presente, player:players(id, elo)")
+          .eq("match_id", matchId),
+        supabase.from("matches").select("equipo_a_score, equipo_b_score").eq("id", matchId).single(),
       ]);
       if (votesRes.error) throw votesRes.error;
       if (mpRes.error) throw mpRes.error;
+      if (matchRes.error) throw matchRes.error;
 
       const votes = votesRes.data ?? [];
+      const mp = (mpRes.data ?? []) as any[];
+
       const stats = new Map<string, { goles: number; asistencias: number }>();
-      (mpRes.data ?? []).forEach((r: any) => {
+      mp.forEach((r) => {
         if (r.presente) stats.set(r.player_id, { goles: r.goles, asistencias: r.asistencias });
       });
 
+      // 1) Ganadores de votación
       const pickWinner = (type: "mvp" | "goal"): string | null => {
         const tally = new Map<string, number>();
         votes.filter((v) => v.type === type).forEach((v) => {
@@ -178,10 +185,37 @@ export const useCloseMatchVoting = () => {
           .sort((a, b) => b.count - a.count || b.goles - a.goles || b.asist - a.asist);
         return ranked[0].pid;
       };
-
       const mvp = pickWinner("mvp");
       const gol = pickWinner("goal");
 
+      // 2) Recalcular ELO
+      const teamA = mp.filter((r) => r.presente && r.equipo === "A");
+      const teamB = mp.filter((r) => r.presente && r.equipo === "B");
+      const eloA = avgElo(teamA.map((r) => Number(r.player?.elo ?? ELO_INICIAL)));
+      const eloB = avgElo(teamB.map((r) => Number(r.player?.elo ?? ELO_INICIAL)));
+      const scoreA = matchRes.data.equipo_a_score;
+      const scoreB = matchRes.data.equipo_b_score;
+      const resultA = teamResult(scoreA, scoreB);
+      const resultB = 1 - resultA;
+      const expA = expectedScore(eloA, eloB);
+      const expB = 1 - expA;
+
+      const eloUpdates: { id: string; elo: number }[] = [];
+      teamA.forEach((r) => {
+        const cur = Number(r.player?.elo ?? ELO_INICIAL);
+        eloUpdates.push({ id: r.player_id, elo: Math.round(newElo(cur, expA, resultA)) });
+      });
+      teamB.forEach((r) => {
+        const cur = Number(r.player?.elo ?? ELO_INICIAL);
+        eloUpdates.push({ id: r.player_id, elo: Math.round(newElo(cur, expB, resultB)) });
+      });
+
+      // Aplicar updates de ELO en paralelo
+      await Promise.all(
+        eloUpdates.map((u) => supabase.from("players").update({ elo: u.elo } as any).eq("id", u.id)),
+      );
+
+      // 3) Cerrar partido
       const { data, error } = await supabase
         .from("matches")
         .update({
@@ -193,13 +227,15 @@ export const useCloseMatchVoting = () => {
         .select()
         .single();
       if (error) throw error;
-      return { match: data, mvp, gol, totalVotes: votes.length };
+      return { match: data, mvp, gol, totalVotes: votes.length, eloUpdates };
     },
     onSuccess: (_, matchId) => {
       qc.invalidateQueries({ queryKey: ["matches"] });
       qc.invalidateQueries({ queryKey: ["match", matchId] });
       qc.invalidateQueries({ queryKey: ["votes", matchId] });
       qc.invalidateQueries({ queryKey: ["rankings"] });
+      qc.invalidateQueries({ queryKey: ["players"] });
+      qc.invalidateQueries({ queryKey: ["chemistry"] });
     },
   });
 };
