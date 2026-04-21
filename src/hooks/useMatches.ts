@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { FONDO } from "@/lib/scoring";
+import { avgElo, expectedScore, newElo, teamResult, ELO_INICIAL } from "@/lib/elo";
 
 export type Match = Database["public"]["Tables"]["matches"]["Row"];
 export type MatchInsert = Database["public"]["Tables"]["matches"]["Insert"];
