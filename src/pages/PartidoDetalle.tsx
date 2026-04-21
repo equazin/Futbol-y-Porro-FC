@@ -105,6 +105,39 @@ const PartidoDetalle = () => {
     }));
   };
 
+  /**
+   * Auto-arma equipos balanceados a partir de los jugadores ya marcados como presentes
+   * (los que tienen equipo A o B). Si no hay ninguno, usa todos los activos.
+   */
+  const onBalance = () => {
+    const candidates = (Object.values(rows).filter((r) => r.equipo !== null).length > 0)
+      ? Object.values(rows).filter((r) => r.equipo !== null)
+      : Object.values(rows);
+
+    if (candidates.length < 2) {
+      toast.error("Marcá al menos 2 jugadores como presentes");
+      return;
+    }
+
+    const lite = candidates.map((r) => {
+      const p = players.find((pl) => pl.id === r.player_id)!;
+      return { id: p.id, elo: Number((p as any).elo ?? 1000), posicion: p.posicion };
+    });
+    const { A, B } = balanceTeams(lite);
+
+    setRows((prev) => {
+      const next = { ...prev };
+      // Reset solo los candidatos
+      candidates.forEach((r) => {
+        next[r.player_id] = { ...next[r.player_id], equipo: null, presente: false };
+      });
+      A.forEach((pid) => { next[pid] = { ...next[pid], equipo: "A", presente: true }; });
+      B.forEach((pid) => { next[pid] = { ...next[pid], equipo: "B", presente: true }; });
+      return next;
+    });
+    toast.success(`Equipos auto-armados: ${A.length} vs ${B.length}`);
+  };
+
   const onSavePlanteles = async () => {
     if (!id) return;
     const toSave: MatchPlayerInput[] = presentes.map((r) => ({
