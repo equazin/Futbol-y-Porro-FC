@@ -254,18 +254,18 @@ const Index = () => {
             <div className="space-y-3">
               <p className="text-xl font-black">{format(new Date(proximoPartido.fecha), "EEEE d 'de' MMMM", { locale: es })}</p>
               <p className="text-sm text-muted-foreground">{format(new Date(proximoPartido.fecha), "HH:mm 'hs'")}</p>
-              <Button asChild className="w-full mt-2">
-                <Link to={isAdmin ? `/admin/partidos/${proximoPartido.id}` : `/partidos/${proximoPartido.id}`}>
-                  {isAdmin ? "Cargar planteles" : "Ver detalle"} <ArrowRight className="h-4 w-4 ml-1" />
-                </Link>
-              </Button>
+                <Button asChild className="w-full mt-2">
+                  <Link to={isAdmin ? `/admin/partidos/${proximoPartido.id}/stats` : `/partidos/${proximoPartido.id}`}>
+                    {isAdmin ? "Cargar stats" : "Ver detalle"} <ArrowRight className="h-4 w-4 ml-1" />
+                  </Link>
+                </Button>
             </div>
           ) : (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">No hay partido programado.</p>
-              <Button asChild variant="default" className="w-full">
-                <Link to={isAdmin ? "/admin/partidos" : "/partidos"}>{isAdmin ? "Crear partido" : "Ver partidos"}</Link>
-              </Button>
+                <Button asChild variant="default" className="w-full">
+                  <Link to={isAdmin ? "/admin/partidos/nuevo" : "/partidos"}>{isAdmin ? "Crear partido" : "Ver partidos"}</Link>
+                </Button>
             </div>
           )}
         </div>

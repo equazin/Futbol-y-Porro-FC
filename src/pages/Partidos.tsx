@@ -1,14 +1,10 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Plus, Calendar, ChevronRight, Trash2, Trophy, MapPin } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,7 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
-import { useMatches, useCreateMatch, useDeleteMatch, type Match } from "@/hooks/useMatches";
+import { useMatches, useDeleteMatch, type Match } from "@/hooks/useMatches";
 
 const estadoStyles: Record<string, string> = {
   pendiente: "bg-stats/15 text-stats border-stats/30",
@@ -29,44 +25,21 @@ const estadoStyles: Record<string, string> = {
   cerrado: "bg-mvp/15 text-mvp border-mvp/30",
 };
 
-const SEDES = ["Cancha Norte", "Cancha Sur", "Polideportivo", "Club Barrio", "Otra"] as const;
-
-const Partidos = ({ basePath = "/admin/partidos", readOnly = false }: { basePath?: string; readOnly?: boolean }) => {
+const Partidos = ({
+  basePath = "/admin/partidos",
+  detailSuffix = "",
+  readOnly = false,
+}: {
+  basePath?: string;
+  detailSuffix?: string;
+  readOnly?: boolean;
+}) => {
+  const navigate = useNavigate();
   const { data: matches = [], isLoading } = useMatches();
-  const createMut = useCreateMatch();
   const deleteMut = useDeleteMatch();
-
-  const [open, setOpen] = useState(false);
-  const [fecha, setFecha] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + ((7 - d.getDay()) % 7 || 7));
-    d.setHours(11, 0, 0, 0);
-    return d.toISOString().slice(0, 16);
-  });
-  const [sedePreset, setSedePreset] = useState<(typeof SEDES)[number]>("Cancha Norte");
-  const [sedeCustom, setSedeCustom] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<Match | null>(null);
 
-  const onCreate = async () => {
-    const sede = sedePreset === "Otra" ? sedeCustom.trim() : sedePreset;
-    if (!sede) {
-      toast.error("Selecciona una sede");
-      return;
-    }
-
-    try {
-      await createMut.mutateAsync({
-        fecha: new Date(fecha).toISOString(),
-        notas: sede,
-      });
-      toast.success("Partido creado");
-      setOpen(false);
-      setSedePreset("Cancha Norte");
-      setSedeCustom("");
-    } catch (e: any) {
-      toast.error(e.message);
-    }
-  };
+  const createPath = basePath.startsWith("/admin") ? "/admin/partidos/nuevo" : `${basePath}/nuevo`;
 
   const onDelete = async () => {
     if (!confirmDelete) return;
@@ -87,8 +60,10 @@ const Partidos = ({ basePath = "/admin/partidos", readOnly = false }: { basePath
           <p className="text-sm text-muted-foreground">{matches.length} en historia</p>
         </div>
         {!readOnly && (
-          <Button onClick={() => setOpen(true)} className="shadow-glow">
-            <Plus className="h-4 w-4 mr-1" /> Nuevo
+          <Button asChild className="shadow-glow">
+            <Link to={createPath}>
+              <Plus className="h-4 w-4 mr-1" /> Nuevo
+            </Link>
           </Button>
         )}
       </header>
@@ -100,7 +75,7 @@ const Partidos = ({ basePath = "/admin/partidos", readOnly = false }: { basePath
           icon={Calendar}
           title="Sin partidos cargados"
           description={readOnly ? "Aun no hay historial cargado." : "Crea el primer partido del domingo."}
-          action={readOnly ? undefined : { label: "Crear partido", onClick: () => setOpen(true) }}
+          action={readOnly ? undefined : { label: "Crear partido", onClick: () => navigate(createPath) }}
         />
       ) : (
         <div className="space-y-3">
@@ -110,7 +85,7 @@ const Partidos = ({ basePath = "/admin/partidos", readOnly = false }: { basePath
             return (
               <Link
                 key={m.id}
-                to={`${basePath}/${m.id}`}
+                to={`${basePath}/${m.id}${detailSuffix}`}
                 className="group block rounded-2xl border border-border/60 bg-gradient-card p-4 transition-smooth hover:border-primary/40 hover:shadow-glow"
               >
                 <div className="flex items-center gap-4">
@@ -146,7 +121,9 @@ const Partidos = ({ basePath = "/admin/partidos", readOnly = false }: { basePath
                         )}
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">{readOnly ? "Por jugarse" : "Por jugarse - carga los planteles"}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {readOnly ? "Por jugarse" : "Por jugarse - carga stats al terminar"}
+                      </p>
                     )}
                   </div>
 
@@ -175,58 +152,13 @@ const Partidos = ({ basePath = "/admin/partidos", readOnly = false }: { basePath
       )}
 
       {!readOnly && (
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Nuevo partido</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-              <div className="space-y-2">
-                <Label>Fecha y hora</Label>
-                <Input type="datetime-local" value={fecha} onChange={(e) => setFecha(e.target.value)} />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Sede</Label>
-                <Select value={sedePreset} onValueChange={(v) => setSedePreset(v as (typeof SEDES)[number])}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona sede" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SEDES.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {sedePreset === "Otra" && (
-                <div className="space-y-2">
-                  <Label>Nombre de la sede</Label>
-                  <Input value={sedeCustom} onChange={(e) => setSedeCustom(e.target.value)} placeholder="Ej: Complejo Don Bosco" />
-                </div>
-              )}
-            </div>
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={onCreate} disabled={createMut.isPending}>
-                Crear partido
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {!readOnly && (
         <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Eliminar este partido?</AlertDialogTitle>
-              <AlertDialogDescription>Se borraran tambien los planteles, votos y aportes asociados. Esta accion no se puede deshacer.</AlertDialogDescription>
+              <AlertDialogDescription>
+                Se borraran tambien los planteles, votos y aportes asociados. Esta accion no se puede deshacer.
+              </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancelar</AlertDialogCancel>

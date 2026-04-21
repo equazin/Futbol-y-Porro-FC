@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { HashRouter, Route, Routes } from "react-router-dom";
+import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -18,6 +18,8 @@ import Fondo from "./pages/Fondo";
 import Multas from "./pages/Multas";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import MatchWizardPage from "./pages/admin/MatchWizardPage";
+import MatchStats from "./pages/admin/MatchStats";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,8 +49,10 @@ const App = () => (
             <Route element={<RequireAdmin />}>
               <Route element={<AdminLayout />}>
                 <Route path="/admin" element={<AdminDashboard />} />
-                <Route path="/admin/partidos" element={<Partidos basePath="/admin/partidos" readOnly={false} />} />
-                <Route path="/admin/partidos/:id" element={<PartidoDetalle backPath="/admin/partidos" readOnly={false} />} />
+                <Route path="/admin/partidos" element={<Partidos basePath="/admin/partidos" detailSuffix="/stats" readOnly={false} />} />
+                <Route path="/admin/partidos/nuevo" element={<MatchWizardPage />} />
+                <Route path="/admin/partidos/:id/stats" element={<MatchStats />} />
+                <Route path="/admin/partidos/:id" element={<Navigate to="stats" replace />} />
                 <Route path="/admin/jugadores" element={<Jugadores readOnly={false} />} />
                 <Route path="/admin/fondo" element={<Fondo readOnly={false} />} />
                 <Route path="/admin/multas" element={<Multas readOnly={false} />} />

@@ -8,6 +8,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { formatARS } from "@/lib/scoring";
 
 const quickActions = [
+  { to: "/admin/partidos/nuevo", label: "Nuevo partido (wizard)", icon: Calendar },
   { to: "/admin/partidos", label: "Gestionar partidos", icon: Calendar },
   { to: "/admin/jugadores", label: "Gestionar jugadores", icon: Users },
   { to: "/admin/fondo", label: "Gestionar fondo", icon: Wallet },
