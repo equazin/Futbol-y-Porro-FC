@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Calendar, ChevronRight, Trash2, Trophy } from "lucide-react";
+import { Plus, Calendar, ChevronRight, Trash2, Trophy, MapPin } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
@@ -8,9 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
@@ -22,6 +29,8 @@ const estadoStyles: Record<string, string> = {
   cerrado: "bg-mvp/15 text-mvp border-mvp/30",
 };
 
+const SEDES = ["Cancha Norte", "Cancha Sur", "Polideportivo", "Club Barrio", "Otra"] as const;
+
 const Partidos = () => {
   const { data: matches = [], isLoading } = useMatches();
   const createMut = useCreateMatch();
@@ -30,18 +39,30 @@ const Partidos = () => {
   const [open, setOpen] = useState(false);
   const [fecha, setFecha] = useState(() => {
     const d = new Date();
-    d.setDate(d.getDate() + ((7 - d.getDay()) % 7 || 7)); // próximo domingo
+    d.setDate(d.getDate() + ((7 - d.getDay()) % 7 || 7));
     d.setHours(11, 0, 0, 0);
     return d.toISOString().slice(0, 16);
   });
+  const [sedePreset, setSedePreset] = useState<(typeof SEDES)[number]>("Cancha Norte");
+  const [sedeCustom, setSedeCustom] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<Match | null>(null);
 
   const onCreate = async () => {
+    const sede = sedePreset === "Otra" ? sedeCustom.trim() : sedePreset;
+    if (!sede) {
+      toast.error("Selecciona una sede");
+      return;
+    }
+
     try {
-      const m = await createMut.mutateAsync({ fecha: new Date(fecha).toISOString() });
+      await createMut.mutateAsync({
+        fecha: new Date(fecha).toISOString(),
+        notas: sede,
+      });
       toast.success("Partido creado");
       setOpen(false);
-      // navigate not strictly needed; user can click
+      setSedePreset("Cancha Norte");
+      setSedeCustom("");
     } catch (e: any) {
       toast.error(e.message);
     }
@@ -71,18 +92,14 @@ const Partidos = () => {
       </header>
 
       {isLoading ? (
-        <p className="text-muted-foreground text-sm">Cargando…</p>
+        <p className="text-muted-foreground text-sm">Cargando...</p>
       ) : matches.length === 0 ? (
-        <EmptyState
-          icon={Calendar}
-          title="Sin partidos cargados"
-          description="Creá el primer partido del domingo."
-          action={{ label: "Crear partido", onClick: () => setOpen(true) }}
-        />
+        <EmptyState icon={Calendar} title="Sin partidos cargados" description="Crea el primer partido del domingo." action={{ label: "Crear partido", onClick: () => setOpen(true) }} />
       ) : (
         <div className="space-y-3">
           {matches.map((m) => {
             const mvp = (m as any).mvp;
+            const sede = (m.notas ?? "").trim();
             return (
               <Link
                 key={m.id}
@@ -91,26 +108,23 @@ const Partidos = () => {
               >
                 <div className="flex items-center gap-4">
                   <div className="text-center px-3 py-2 rounded-xl bg-secondary/60 min-w-[68px]">
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground">
-                      {format(new Date(m.fecha), "MMM", { locale: es })}
-                    </p>
-                    <p className="text-2xl font-black leading-none">
-                      {format(new Date(m.fecha), "d")}
-                    </p>
-                    <p className="text-[10px] uppercase text-muted-foreground">
-                      {format(new Date(m.fecha), "HH:mm")}
-                    </p>
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground">{format(new Date(m.fecha), "MMM", { locale: es })}</p>
+                    <p className="text-2xl font-black leading-none">{format(new Date(m.fecha), "d")}</p>
+                    <p className="text-[10px] uppercase text-muted-foreground">{format(new Date(m.fecha), "HH:mm")}</p>
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${estadoStyles[m.estado]}`}>
-                        {m.estado}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {format(new Date(m.fecha), "EEEE", { locale: es })}
-                      </span>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${estadoStyles[m.estado]}`}>{m.estado}</span>
+                      <span className="text-xs text-muted-foreground">{format(new Date(m.fecha), "EEEE", { locale: es })}</span>
                     </div>
+
+                    {sede && (
+                      <p className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
+                        <MapPin className="h-3 w-3" /> {sede}
+                      </p>
+                    )}
+
                     {m.estado !== "pendiente" ? (
                       <div className="flex items-center gap-3">
                         <span className="font-black text-2xl">{m.equipo_a_score}</span>
@@ -120,14 +134,12 @@ const Partidos = () => {
                           <div className="flex items-center gap-1 ml-auto pl-3 border-l border-border">
                             <Trophy className="h-3 w-3 text-mvp" />
                             <PlayerAvatar nombre={mvp.nombre} foto_url={mvp.foto_url} size="sm" />
-                            <span className="text-xs font-bold truncate max-w-[80px]">
-                              {mvp.apodo ?? mvp.nombre}
-                            </span>
+                            <span className="text-xs font-bold truncate max-w-[80px]">{mvp.apodo ?? mvp.nombre}</span>
                           </div>
                         )}
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">Por jugarse — cargá los planteles</p>
+                      <p className="text-sm text-muted-foreground">Por jugarse - carga los planteles</p>
                     )}
                   </div>
 
@@ -163,10 +175,37 @@ const Partidos = () => {
               <Label>Fecha y hora</Label>
               <Input type="datetime-local" value={fecha} onChange={(e) => setFecha(e.target.value)} />
             </div>
+
+            <div className="space-y-2">
+              <Label>Sede</Label>
+              <Select value={sedePreset} onValueChange={(v) => setSedePreset(v as (typeof SEDES)[number])}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona sede" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SEDES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {sedePreset === "Otra" && (
+              <div className="space-y-2">
+                <Label>Nombre de la sede</Label>
+                <Input value={sedeCustom} onChange={(e) => setSedeCustom(e.target.value)} placeholder="Ej: Complejo Don Bosco" />
+              </div>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button onClick={onCreate} disabled={createMut.isPending}>Crear partido</Button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={onCreate} disabled={createMut.isPending}>
+              Crear partido
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -174,10 +213,8 @@ const Partidos = () => {
       <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar este partido?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Se borrarán también los planteles, votos y aportes asociados. Esta acción no se puede deshacer.
-            </AlertDialogDescription>
+            <AlertDialogTitle>Eliminar este partido?</AlertDialogTitle>
+            <AlertDialogDescription>Se borraran tambien los planteles, votos y aportes asociados. Esta accion no se puede deshacer.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>

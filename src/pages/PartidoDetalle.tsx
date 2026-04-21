@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -108,12 +109,50 @@ const PartidoDetalle = () => {
     }
   }, [existingAporte]);
 
-  const equipoA = useMemo(() => Object.values(rows).filter((r) => r.equipo === "A"), [rows]);
-  const equipoB = useMemo(() => Object.values(rows).filter((r) => r.equipo === "B"), [rows]);
-  const presentes = useMemo(() => Object.values(rows).filter((r) => r.equipo !== null), [rows]);
+  const equipoA = useMemo(() => Object.values(rows).filter((r) => r.presente && r.equipo === "A"), [rows]);
+  const equipoB = useMemo(() => Object.values(rows).filter((r) => r.presente && r.equipo === "B"), [rows]);
+  const presentes = useMemo(() => Object.values(rows).filter((r) => r.presente), [rows]);
 
   const update = (pid: string, patch: Partial<Row>) =>
-    setRows((prev) => ({ ...prev, [pid]: { ...prev[pid], ...patch, presente: patch.equipo !== null ? true : prev[pid].presente } }));
+    setRows((prev) => ({ ...prev, [pid]: { ...prev[pid], ...patch } }));
+
+  const rebalanceSelectedRows = (
+    baseRows: Record<string, Row>,
+    options?: { showToast?: boolean; showErrorOnEmpty?: boolean }
+  ) => {
+    const selected = Object.values(baseRows).filter((r) => r.presente);
+    if (selected.length === 0) {
+      if (options?.showErrorOnEmpty) toast.error("Marca al menos 1 jugador para armar equipos");
+      return baseRows;
+    }
+
+    const next = { ...baseRows };
+    selected.forEach((r) => {
+      next[r.player_id] = { ...next[r.player_id], equipo: null, presente: true };
+    });
+
+    if (selected.length === 1) {
+      const only = selected[0].player_id;
+      next[only] = { ...next[only], equipo: "A", presente: true };
+      return next;
+    }
+
+    const lite = selected.map((r) => {
+      const p = players.find((pl) => pl.id === r.player_id)!;
+      return { id: p.id, elo: Number((p as any).elo ?? 1000), posicion: p.posicion };
+    });
+    const { A, B } = balanceTeams(lite);
+
+    A.forEach((pid) => {
+      next[pid] = { ...next[pid], equipo: "A", presente: true };
+    });
+    B.forEach((pid) => {
+      next[pid] = { ...next[pid], equipo: "B", presente: true };
+    });
+
+    if (options?.showToast) toast.success(`Equipos auto-armados: ${A.length} vs ${B.length}`);
+    return next;
+  };
 
   const setEquipo = (pid: string, eq: "A" | "B" | null) => {
     setRows((prev) => ({
@@ -122,41 +161,29 @@ const PartidoDetalle = () => {
     }));
   };
 
-  const onBalance = () => {
-    const candidates =
-      Object.values(rows).filter((r) => r.equipo !== null).length > 0
-        ? Object.values(rows).filter((r) => r.equipo !== null)
-        : Object.values(rows);
-
-    if (candidates.length < 2) {
-      toast.error("Marca al menos 2 jugadores como presentes");
-      return;
-    }
-
-    const lite = candidates.map((r) => {
-      const p = players.find((pl) => pl.id === r.player_id)!;
-      return { id: p.id, elo: Number((p as any).elo ?? 1000), posicion: p.posicion };
-    });
-    const { A, B } = balanceTeams(lite);
-
+  const toggleParticipa = (pid: string, willPlay: boolean) => {
     setRows((prev) => {
       const next = { ...prev };
-      candidates.forEach((r) => {
-        next[r.player_id] = { ...next[r.player_id], equipo: null, presente: false };
-      });
-      A.forEach((pid) => {
-        next[pid] = { ...next[pid], equipo: "A", presente: true };
-      });
-      B.forEach((pid) => {
-        next[pid] = { ...next[pid], equipo: "B", presente: true };
-      });
-      return next;
+      next[pid] = {
+        ...next[pid],
+        presente: willPlay,
+        equipo: willPlay ? next[pid].equipo : null,
+      };
+      return rebalanceSelectedRows(next);
     });
-    toast.success(`Equipos auto-armados: ${A.length} vs ${B.length}`);
+  };
+
+  const onBalance = () => {
+    setRows((prev) => rebalanceSelectedRows(prev, { showToast: true, showErrorOnEmpty: true }));
   };
 
   const onSavePlanteles = async () => {
     if (!id) return;
+    const sinEquipo = presentes.filter((r) => r.equipo === null);
+    if (sinEquipo.length > 0) {
+      toast.error("Hay jugadores marcados para jugar sin equipo asignado");
+      return;
+    }
     const toSave: MatchPlayerInput[] = presentes.map((r) => ({
       player_id: r.player_id,
       equipo: r.equipo as "A" | "B",
@@ -243,11 +270,11 @@ const PartidoDetalle = () => {
           <div className="rounded-xl border border-border/60 bg-gradient-card p-4">
             <div className="grid gap-3 lg:grid-cols-[1fr_auto] items-start mb-3">
               <p className="text-xs text-muted-foreground">
-                Asigna cada jugador a un equipo (A o B). Quien quede sin equipo se considera ausente.
+                Marca quienes juegan y los equipos se arman automaticamente con esos jugadores.
               </p>
               <Button type="button" size="sm" variant="outline" onClick={onBalance} className="border-mvp/40 hover:bg-mvp/10 shrink-0">
                 <Shuffle className="h-3.5 w-3.5 mr-1.5" />
-                Auto-armar
+                Rebalancear
               </Button>
             </div>
 
@@ -278,30 +305,39 @@ const PartidoDetalle = () => {
                 if (!r) return null;
                 return (
                   <div key={p.id} className="flex items-center gap-2 p-2 rounded-lg border border-border/40 bg-card/50">
+                    <Checkbox
+                      checked={r.presente}
+                      onCheckedChange={(v) => toggleParticipa(p.id, !!v)}
+                    />
                     <PlayerAvatar nombre={p.nombre} foto_url={p.foto_url} size="md" />
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-sm truncate">{p.apodo ?? p.nombre}</p>
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                        {r.presente ? `Juega · Equipo ${r.equipo ?? "-"}` : "No juega"}
+                      </p>
                     </div>
-                    <div className="flex gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setEquipo(p.id, r.equipo === "A" ? null : "A")}
-                        className={`h-8 w-8 rounded-md text-xs font-black transition-smooth ${
-                          r.equipo === "A" ? "bg-primary text-primary-foreground shadow-glow" : "bg-secondary text-muted-foreground hover:bg-secondary/80"
-                        }`}
-                      >
-                        A
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEquipo(p.id, r.equipo === "B" ? null : "B")}
-                        className={`h-8 w-8 rounded-md text-xs font-black transition-smooth ${
-                          r.equipo === "B" ? "bg-stats text-stats-foreground" : "bg-secondary text-muted-foreground hover:bg-secondary/80"
-                        }`}
-                      >
-                        B
-                      </button>
-                    </div>
+                    {r.presente && (
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setEquipo(p.id, "A")}
+                          className={`h-8 w-8 rounded-md text-xs font-black transition-smooth ${
+                            r.equipo === "A" ? "bg-primary text-primary-foreground shadow-glow" : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                          }`}
+                        >
+                          A
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEquipo(p.id, "B")}
+                          className={`h-8 w-8 rounded-md text-xs font-black transition-smooth ${
+                            r.equipo === "B" ? "bg-stats text-stats-foreground" : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                          }`}
+                        >
+                          B
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
