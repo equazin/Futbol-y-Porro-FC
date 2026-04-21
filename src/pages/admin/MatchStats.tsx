@@ -30,7 +30,6 @@ import { usePlayers } from "@/hooks/usePlayers";
 import { useVotes, tallyVotes } from "@/hooks/useVotes";
 import { FONDO, CALIFICACION_CRITERIOS } from "@/lib/scoring";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Info } from "lucide-react";
 
 interface Row {
   player_id: string;
