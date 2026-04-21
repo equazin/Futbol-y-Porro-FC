@@ -222,9 +222,21 @@ const PartidoDetalle = () => {
         {/* PLANTELES */}
         <TabsContent value="planteles" className="space-y-4 mt-4">
           <div className="rounded-xl border border-border/60 bg-gradient-card p-4">
-            <p className="text-xs text-muted-foreground mb-3">
-              Asigná cada jugador a un equipo (A o B). Quien quede sin equipo se considera ausente.
-            </p>
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <p className="text-xs text-muted-foreground flex-1">
+                Asigná cada jugador a un equipo (A o B). Quien quede sin equipo se considera ausente.
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={onBalance}
+                className="border-mvp/40 hover:bg-mvp/10 shrink-0"
+              >
+                <Shuffle className="h-3.5 w-3.5 mr-1.5" />
+                Auto-armar
+              </Button>
+            </div>
             <div className="grid sm:grid-cols-2 gap-2">
               {players.map((p) => {
                 const r = rows[p.id];
