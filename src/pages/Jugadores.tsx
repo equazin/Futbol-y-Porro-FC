@@ -220,6 +220,11 @@ const Jugadores = () => {
             <DialogTitle>{editing ? "Editar jugador" : "Nuevo jugador"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            <PhotoUploader
+              nombre={form.apodo || form.nombre}
+              currentUrl={form.foto_url}
+              onChange={(url) => setForm({ ...form, foto_url: url })}
+            />
             <div className="space-y-2">
               <Label>Nombre completo *</Label>
               <Input
