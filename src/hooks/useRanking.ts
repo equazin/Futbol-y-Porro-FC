@@ -64,7 +64,7 @@ export const useRanking = () =>
     retry: 1,
     queryFn: async () => {
       const [playersRes, matchesRes, matchPlayersRes, bonusesRes, panelWinsRes] = await Promise.all([
-        withTimeout((supabase as any).from("players").select("id, nombre, apodo, foto_url, elo, activo, tipo").eq("tipo", "titular"), "jugadores"),
+        withTimeout((supabase as any).from("players").select("id, nombre, apodo, foto_url, elo, activo, tipo"), "jugadores"),
         withTimeout(
           (supabase as any).from("matches").select("id, estado, equipo_a_score, equipo_b_score, mvp_player_id, gol_de_la_fecha_player_id"),
           "partidos",
@@ -155,6 +155,7 @@ export const useRanking = () =>
 
       for (const player of players) {
         if (!player.activo) continue;
+        if (player.tipo === "invitado") continue;
         rows.set(player.id, {
           player_id: player.id,
           nombre: player.nombre,

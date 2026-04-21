@@ -23,10 +23,12 @@ export const usePlayers = (onlyActiveOrOpts: boolean | UsePlayersOptions = true)
     queryFn: async () => {
       let q = supabase.from("players").select("*").order("nombre");
       if (onlyActive) q = q.eq("activo", true);
-      if (tipo !== "all") q = (q as any).eq("tipo", tipo);
       const { data, error } = await q;
       if (error) throw error;
-      return data as Player[];
+      const rows = (data ?? []) as Player[];
+      // Filter by tipo in JS so query doesn't fail if column doesn't exist yet
+      if (tipo === "all") return rows;
+      return rows.filter((p) => (p.tipo ?? "titular") === tipo);
     },
   });
 };
