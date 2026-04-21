@@ -39,6 +39,8 @@ const PartidoDetalle = () => {
 
   const saveMut = useSaveMatchPlayers();
   const updateMut = useUpdateMatch();
+  const closeMut = useCloseMatchVoting();
+  const { data: votes = [] } = useVotes(id);
 
   const [rows, setRows] = useState<Record<string, Row>>({});
   const [scoreA, setScoreA] = useState(0);
@@ -46,6 +48,7 @@ const PartidoDetalle = () => {
   const [estado, setEstado] = useState<string>("pendiente");
   const [mvpId, setMvpId] = useState<string>("");
   const [golFechaId, setGolFechaId] = useState<string>("");
+  const [confirmClose, setConfirmClose] = useState(false);
 
   // Inicializar rows cuando carguen jugadores y planteles
   useEffect(() => {
