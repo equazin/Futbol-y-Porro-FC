@@ -136,3 +136,69 @@ export const useUpdateMatch = () => {
     },
   });
 };
+
+/**
+ * Cierra la votación de un partido:
+ * 1) Cuenta votos MVP y Gol
+ * 2) Aplica desempates: más votos → más goles → más asistencias
+ * 3) Asigna mvp_player_id y gol_de_la_fecha_player_id en matches
+ * 4) Marca el partido como "cerrado"
+ */
+export const useCloseMatchVoting = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (matchId: string) => {
+      const [votesRes, mpRes] = await Promise.all([
+        supabase.from("votes").select("*").eq("match_id", matchId),
+        supabase.from("match_players").select("player_id, goles, asistencias, presente").eq("match_id", matchId),
+      ]);
+      if (votesRes.error) throw votesRes.error;
+      if (mpRes.error) throw mpRes.error;
+
+      const votes = votesRes.data ?? [];
+      const stats = new Map<string, { goles: number; asistencias: number }>();
+      (mpRes.data ?? []).forEach((r: any) => {
+        if (r.presente) stats.set(r.player_id, { goles: r.goles, asistencias: r.asistencias });
+      });
+
+      const pickWinner = (type: "mvp" | "goal"): string | null => {
+        const tally = new Map<string, number>();
+        votes.filter((v) => v.type === type).forEach((v) => {
+          tally.set(v.voted_player_id, (tally.get(v.voted_player_id) ?? 0) + 1);
+        });
+        if (tally.size === 0) return null;
+        const ranked = Array.from(tally.entries())
+          .map(([pid, count]) => ({
+            pid,
+            count,
+            goles: stats.get(pid)?.goles ?? 0,
+            asist: stats.get(pid)?.asistencias ?? 0,
+          }))
+          .sort((a, b) => b.count - a.count || b.goles - a.goles || b.asist - a.asist);
+        return ranked[0].pid;
+      };
+
+      const mvp = pickWinner("mvp");
+      const gol = pickWinner("goal");
+
+      const { data, error } = await supabase
+        .from("matches")
+        .update({
+          estado: "cerrado",
+          mvp_player_id: mvp,
+          gol_de_la_fecha_player_id: gol,
+        })
+        .eq("id", matchId)
+        .select()
+        .single();
+      if (error) throw error;
+      return { match: data, mvp, gol, totalVotes: votes.length };
+    },
+    onSuccess: (_, matchId) => {
+      qc.invalidateQueries({ queryKey: ["matches"] });
+      qc.invalidateQueries({ queryKey: ["match", matchId] });
+      qc.invalidateQueries({ queryKey: ["votes", matchId] });
+      qc.invalidateQueries({ queryKey: ["rankings"] });
+    },
+  });
+};
