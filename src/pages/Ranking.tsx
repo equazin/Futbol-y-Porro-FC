@@ -6,14 +6,36 @@ import { usePlayers } from "@/hooks/usePlayers";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatARS, FONDO } from "@/lib/scoring";
+import { Button } from "@/components/ui/button";
 
 const Ranking = () => {
-  const { data: ranking = [], isLoading } = useRanking();
+  const { data: ranking = [], isLoading, isError, error, refetch, fetchStatus } = useRanking();
   const { data: chemistry = [] } = useChemistry(2);
   const { data: players = [] } = usePlayers();
   const playerById = (id: string) => players.find((p) => p.id === id);
 
+  if (fetchStatus === "paused") {
+    return (
+      <div className="space-y-3">
+        <h1 className="text-2xl md:text-3xl font-black">Ranking</h1>
+        <p className="text-muted-foreground">Sin conexion para cargar el ranking. Revisa internet y reintenta.</p>
+        <Button onClick={() => refetch()}>Reintentar</Button>
+      </div>
+    );
+  }
+
   if (isLoading) return <p className="text-muted-foreground">Cargando...</p>;
+
+  if (isError) {
+    const msg = error instanceof Error ? error.message : "No se pudo cargar el ranking.";
+    return (
+      <div className="space-y-3">
+        <h1 className="text-2xl md:text-3xl font-black">Ranking</h1>
+        <p className="text-destructive text-sm">{msg}</p>
+        <Button onClick={() => refetch()}>Reintentar</Button>
+      </div>
+    );
+  }
 
   if (ranking.length === 0) {
     return (

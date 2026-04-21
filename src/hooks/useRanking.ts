@@ -81,21 +81,44 @@ function calcularPromedioRendimiento(input: {
   return Number(score10.toFixed(1));
 }
 
+const QUERY_TIMEOUT_MS = 10000;
+
+const withTimeout = async <T>(promise: Promise<T>, label: string): Promise<T> => {
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error(`Timeout al cargar ${label}`)), QUERY_TIMEOUT_MS);
+  });
+  return Promise.race([promise, timeoutPromise]);
+};
+
 export const useRanking = () =>
   useQuery({
     queryKey: ["rankings"],
+    networkMode: "always",
+    retry: 1,
     queryFn: async () => {
-      const [playersRes, matchesRes, matchPlayersRes, finesRes] = await Promise.all([
-        (supabase as any).from("players").select("id, nombre, apodo, foto_url, elo, activo"),
-        (supabase as any).from("matches").select("id, estado, equipo_a_score, equipo_b_score, mvp_player_id, gol_de_la_fecha_player_id"),
-        (supabase as any).from("match_players").select("player_id, match_id, equipo, goles, asistencias, calificacion, presente"),
-        (supabase as any).from("fines").select("player_id, monto, pagada"),
+      const [playersRes, matchesRes, matchPlayersRes] = await Promise.all([
+        withTimeout((supabase as any).from("players").select("id, nombre, apodo, foto_url, elo, activo"), "jugadores"),
+        withTimeout(
+          (supabase as any).from("matches").select("id, estado, equipo_a_score, equipo_b_score, mvp_player_id, gol_de_la_fecha_player_id"),
+          "partidos",
+        ),
+        withTimeout(
+          (supabase as any).from("match_players").select("player_id, match_id, equipo, goles, asistencias, calificacion, presente"),
+          "participaciones",
+        ),
       ]);
+
+      const finesRes = await withTimeout((supabase as any).from("fines").select("player_id, monto, pagada"), "multas").catch(
+        () =>
+          ({
+            data: [],
+            error: null,
+          }) as { data: []; error: null },
+      );
 
       if (playersRes.error) throw playersRes.error;
       if (matchesRes.error) throw matchesRes.error;
       if (matchPlayersRes.error) throw matchPlayersRes.error;
-      if (finesRes.error) throw finesRes.error;
 
       const players = (playersRes.data ?? []) as Array<{
         id: string;
@@ -122,7 +145,7 @@ export const useRanking = () =>
         calificacion: number | null;
         presente: boolean;
       }>;
-      const fines = (finesRes.data ?? []) as Array<{
+      const fines = ((finesRes as any).data ?? []) as Array<{
         player_id: string;
         monto: number;
         pagada: boolean;
