@@ -95,6 +95,7 @@ const Jugadores = () => {
       nombre: parsed.data.nombre,
       apodo: parsed.data.apodo || null,
       posicion: (parsed.data.posicion ?? null) as Player["posicion"],
+      foto_url: form.foto_url,
     };
     try {
       if (editing) {
