@@ -64,7 +64,7 @@ export const useRanking = () =>
     networkMode: "always",
     retry: 1,
     queryFn: async () => {
-      const [playersRes, matchesRes, matchPlayersRes, bonusesRes, panelWinsRes] = await Promise.all([
+      const [playersRes, matchesRes, matchPlayersRes, bonusesRes, panelWinsRes, historicalRes] = await Promise.all([
         withTimeout((supabase as any).from("players").select("id, nombre, apodo, foto_url, elo, activo"), "jugadores"),
         withTimeout(
           (supabase as any).from("matches").select("id, estado, equipo_a_score, equipo_b_score, mvp_player_id, gol_de_la_fecha_player_id"),
@@ -78,6 +78,9 @@ export const useRanking = () =>
           () => ({ data: [], error: null }) as { data: []; error: null },
         ),
         withTimeout((supabase as any).from("player_panel_wins").select("player_id, wins_historicas"), "panel_wins").catch(
+          () => ({ data: [], error: null }) as { data: []; error: null },
+        ),
+        withTimeout((supabase as any).from("player_historical_stats").select("player_id, pj, pg, mvp, gf"), "historial").catch(
           () => ({ data: [], error: null }) as { data: []; error: null },
         ),
       ]);
@@ -134,6 +137,13 @@ export const useRanking = () =>
         player_id: string;
         wins_historicas: number;
       }>;
+      const historicalStats = ((historicalRes as any).data ?? []) as Array<{
+        player_id: string;
+        pj: number;
+        pg: number;
+        mvp: number;
+        gf: number;
+      }>;
 
       const bonusByPlayer = new Map<string, number>();
       for (const b of bonuses) {
@@ -143,6 +153,16 @@ export const useRanking = () =>
       const panelWinsByPlayer = new Map<string, number>();
       for (const pw of panelWins) {
         panelWinsByPlayer.set(pw.player_id, Number(pw.wins_historicas));
+      }
+
+      const historicalByPlayer = new Map<string, { pj: number; pg: number; mvp: number; gf: number }>();
+      for (const h of historicalStats) {
+        historicalByPlayer.set(h.player_id, {
+          pj: Number(h.pj),
+          pg: Number(h.pg),
+          mvp: Number(h.mvp),
+          gf: Number(h.gf),
+        });
       }
 
       const closedMatches = new Map(matches.filter((m) => m.estado === "cerrado").map((m) => [m.id, m]));
@@ -223,24 +243,38 @@ export const useRanking = () =>
         row.promedio_calificacion =
           row.ratings_count > 0 ? Number((row.ratings_total / row.ratings_count).toFixed(2)) : null;
 
+        const hist = historicalByPlayer.get(row.player_id);
         const panelWinsCount = panelWinsByPlayer.get(row.player_id);
-        const wins = panelWinsCount !== undefined ? panelWinsCount + row.wins_dynamic : row.wins_dynamic;
         const bonus = bonusByPlayer.get(row.player_id) ?? 0;
-        const efectividad = row.partidos_jugados > 0 ? Number(((wins / row.partidos_jugados) * 100).toFixed(1)) : 0;
+
+        // Totales = histórico + digital
+        const totalPJ = row.partidos_jugados + (hist?.pj ?? 0);
+        const totalMVP = row.mvp_count + (hist?.mvp ?? 0);
+        const totalGF = row.gol_fecha_count + (hist?.gf ?? 0);
+
+        // Victorias: player_panel_wins (históricas) + wins_dynamic (digitales)
+        // Si hay historical_stats.pg pero no panel_wins, usamos hist.pg
+        const histWins = panelWinsCount ?? hist?.pg ?? 0;
+        const totalWins = histWins + row.wins_dynamic;
+
+        const efectividad = totalPJ > 0 ? Number(((totalWins / totalPJ) * 100).toFixed(1)) : 0;
         const promedioRendimiento = calcularPromedioRendimiento({
-          partidos: row.partidos_jugados,
-          ganados: wins,
+          partidos: totalPJ,
+          ganados: totalWins,
           goles: row.goles,
           asistencias: row.asistencias,
-          mvp: row.mvp_count,
-          golFecha: row.gol_fecha_count,
+          mvp: totalMVP,
+          golFecha: totalGF,
         });
 
-        row.partidos_ganados = wins;
+        row.partidos_jugados = totalPJ;
+        row.partidos_ganados = totalWins;
+        row.mvp_count = totalMVP;
+        row.gol_fecha_count = totalGF;
         row.efectividad = efectividad;
         row.promedio_rendimiento = promedioRendimiento;
         row.bonus_points = bonus;
-        row.puntos = row.partidos_jugados * 30 + wins * 20 + row.mvp_count * 50 + row.gol_fecha_count * 20 + bonus;
+        row.puntos = totalPJ * 30 + totalWins * 20 + totalMVP * 50 + totalGF * 20 + bonus;
 
         return {
           player_id: row.player_id,
