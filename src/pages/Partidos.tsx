@@ -85,8 +85,13 @@ const Partidos = ({
       ) : (
         <div className="space-y-3">
           {matches.map((m) => {
-            const mvp = (m as any).mvp;
-            const sede = (m.notas ?? "").trim();
+            const mvp = (m as any).mvp as { nombre: string; apodo: string | null; foto_url: string | null } | null;
+            const notas = (m.notas ?? "").trim();
+            // Para partidos históricos el MVP está en notas como "Fecha N · MVP: Nombre"
+            const mvpNotasMatch = notas.match(/MVP:\s*(.+)$/i);
+            const mvpNombre = mvp ? (mvp.apodo ?? mvp.nombre) : (mvpNotasMatch ? mvpNotasMatch[1].trim() : null);
+            const sede = mvpNotasMatch ? notas.replace(/·?\s*MVP:.*$/i, "").trim() : notas;
+
             return (
               <Link
                 key={m.id}
@@ -113,15 +118,19 @@ const Partidos = ({
                     )}
 
                     {m.estado !== "pendiente" ? (
-                      <div className="flex items-center gap-3">
-                        <span className="font-black text-2xl">{m.equipo_a_score}</span>
-                        <span className="text-muted-foreground text-sm">vs</span>
-                        <span className="font-black text-2xl">{m.equipo_b_score}</span>
-                        {mvp && (
-                          <div className="flex items-center gap-1 ml-auto pl-3 border-l border-border">
-                            <Trophy className="h-3 w-3 text-mvp" />
-                            <PlayerAvatar nombre={mvp.nombre} foto_url={mvp.foto_url} size="sm" />
-                            <span className="text-xs font-bold truncate max-w-[80px]">{mvp.apodo ?? mvp.nombre}</span>
+                      <div className="flex items-center gap-4 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-2xl">{m.equipo_a_score}</span>
+                          <span className="text-muted-foreground text-sm">vs</span>
+                          <span className="font-black text-2xl">{m.equipo_b_score}</span>
+                        </div>
+                        {mvpNombre && (
+                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-mvp/10 border border-mvp/30">
+                            <Trophy className="h-3.5 w-3.5 text-mvp shrink-0" />
+                            {mvp && (
+                              <PlayerAvatar nombre={mvp.nombre} foto_url={mvp.foto_url} size="sm" />
+                            )}
+                            <span className="text-sm font-black text-mvp">{mvpNombre}</span>
                           </div>
                         )}
                       </div>
