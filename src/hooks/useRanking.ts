@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { FONDO } from "@/lib/scoring";
 
 export interface RankingRow {
   player_id: string;
@@ -272,29 +273,49 @@ export const useFondo = () =>
     queryKey: ["fondo"],
     queryFn: async () => {
       const [contribsRes, finesRes] = await Promise.all([
-        supabase.from("contributions").select("monto, pagado"),
+        supabase
+          .from("contributions")
+          .select("monto, pagado, match:matches(fecha)"),
         (supabase as any).from("fines").select("monto, pagada"),
       ]);
       if (contribsRes.error) throw contribsRes.error;
       if (finesRes.error) throw finesRes.error;
-      const contribs = contribsRes.data ?? [];
+
+      const allContribs = (contribsRes.data ?? []) as Array<{
+        monto: number;
+        pagado: boolean;
+        match: { fecha: string } | null;
+      }>;
       const fines = (finesRes.data ?? []) as { monto: number; pagada: boolean }[];
 
-      const total = contribs.reduce((s, r) => s + Number(r.monto), 0);
-      const cobrado = contribs.filter((r) => r.pagado).reduce((s, r) => s + Number(r.monto), 0);
+      // Solo contar contribuciones desde FONDO.FECHA_INICIO
+      const contribs = allContribs.filter((c) => {
+        const fecha = c.match?.fecha;
+        return fecha != null && fecha >= FONDO.FECHA_INICIO;
+      });
+
+      const aportesTotal = contribs.reduce((s, r) => s + Number(r.monto), 0);
+      const aporteCobrado = contribs.filter((r) => r.pagado).reduce((s, r) => s + Number(r.monto), 0);
       const multasTotal = fines.reduce((s, r) => s + Number(r.monto), 0);
       const multasCobradas = fines.filter((r) => r.pagada).reduce((s, r) => s + Number(r.monto), 0);
+
+      // Total real = base histórica + aportes digitales
+      const total = FONDO.BASE + aportesTotal;
+      const cobrado = FONDO.BASE + aporteCobrado;
 
       return {
         total,
         cobrado,
-        pendiente: total - cobrado,
+        pendiente: aportesTotal - aporteCobrado,
         count: contribs.length,
         multasTotal,
         multasCobradas,
         multasPendientes: multasTotal - multasCobradas,
-        // Caja efectiva: aportes cobrados + multas cobradas
-        caja: cobrado + multasCobradas,
+        // Caja efectiva: base + aportes cobrados + multas cobradas
+        caja: FONDO.BASE + aporteCobrado + multasCobradas,
+        // Desglose para mostrar en la UI
+        base: FONDO.BASE,
+        aportesDigitales: aporteCobrado,
       };
     },
   });

@@ -11,6 +11,10 @@ export const FONDO = {
   PREMIO_1: 100000,
   PREMIO_2: 50000,
   PREMIO_3_5: "Remera",
+  // Saldo histórico previo a la implementación del sistema digital
+  BASE: 60081,
+  // Solo se cuentan contribuciones a partir de esta fecha (YYYY-MM-DD)
+  FECHA_INICIO: "2026-04-19",
 } as const;
 
 export const VOTACION = {

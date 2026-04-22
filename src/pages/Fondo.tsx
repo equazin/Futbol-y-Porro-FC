@@ -10,6 +10,7 @@ import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { formatARS, FONDO } from "@/lib/scoring";
 import { useFondo } from "@/hooks/useRanking";
 
@@ -72,22 +73,34 @@ const Fondo = ({ readOnly = false }: { readOnly?: boolean }) => {
   });
 
   const totals = useMemo(() => {
-    const total = contribs.reduce((s, c) => s + Number(c.monto), 0);
-    const cobrado = contribs.filter((c) => c.pagado).reduce((s, c) => s + Number(c.monto), 0);
+    // Solo contar aportes desde la fecha de inicio del sistema digital
+    const digitalContribs = contribs.filter((c) => {
+      const fecha = c.match?.fecha;
+      return fecha != null && fecha >= FONDO.FECHA_INICIO;
+    });
+    const total = digitalContribs.reduce((s, c) => s + Number(c.monto), 0);
+    const cobrado = digitalContribs.filter((c) => c.pagado).reduce((s, c) => s + Number(c.monto), 0);
     const premios = FONDO.PREMIO_1 + FONDO.PREMIO_2;
     const pendiente = total - cobrado;
+    // La caja real incluye la base histórica
+    const cajaReal = (fondoGlobal?.caja ?? FONDO.BASE + cobrado);
     return {
       total,
       cobrado,
       pendiente,
-      saldoVsPremios: cobrado - premios,
+      saldoVsPremios: cajaReal - premios,
       progreso: total > 0 ? Math.round((cobrado / total) * 100) : 0,
     };
-  }, [contribs]);
+  }, [contribs, fondoGlobal]);
 
   const groups = useMemo<MatchGroup[]>(() => {
     const map = new Map<string, { fecha: string | null; rows: ContributionRow[] }>();
-    contribs.forEach((c) => {
+    // Solo mostrar partidos desde la fecha de inicio del sistema digital
+    const digitalContribs = contribs.filter((c) => {
+      const fecha = c.match?.fecha;
+      return fecha != null && fecha >= FONDO.FECHA_INICIO;
+    });
+    digitalContribs.forEach((c) => {
       if (!map.has(c.match_id)) map.set(c.match_id, { fecha: c.match?.fecha ?? null, rows: [] });
       map.get(c.match_id)!.rows.push(c);
     });
@@ -139,14 +152,18 @@ const Fondo = ({ readOnly = false }: { readOnly?: boolean }) => {
             <p className="text-sm text-muted-foreground">Aporte default: {formatARS(FONDO.APORTE_POR_PARTIDO)} por jugador</p>
           </div>
           {fondoGlobal !== undefined && (
-            <div className="rounded-xl border border-mvp/40 bg-mvp/10 px-4 py-3 text-right shrink-0">
+            <div className="rounded-xl border border-mvp/40 bg-mvp/10 px-4 py-3 text-right shrink-0 space-y-1">
               <p className="text-[10px] uppercase font-bold text-mvp tracking-wider flex items-center justify-end gap-1">
                 <Banknote className="h-3.5 w-3.5" /> Caja disponible
               </p>
               <p className="text-2xl font-black text-mvp">{formatARS(fondoGlobal.caja)}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">
-                Aportes + multas cobradas
-              </p>
+              <div className="flex flex-col items-end gap-0.5 text-[10px] text-muted-foreground">
+                <span>Base histórica: <span className="font-bold text-foreground">{formatARS(fondoGlobal.base)}</span></span>
+                <span>Aportes digitales: <span className="font-bold text-foreground">{formatARS(fondoGlobal.aportesDigitales)}</span></span>
+                {fondoGlobal.multasCobradas > 0 && (
+                  <span>Multas cobradas: <span className="font-bold text-foreground">{formatARS(fondoGlobal.multasCobradas)}</span></span>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -159,10 +176,9 @@ const Fondo = ({ readOnly = false }: { readOnly?: boolean }) => {
         </div>
       </header>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <StatCard label="Total acumulado" value={formatARS(totals.total)} icon={Wallet} variant="primary" />
-        <StatCard label="Cobrado" value={formatARS(totals.cobrado)} icon={CheckCircle2} variant="mvp" />
-        <StatCard label="Pendiente" value={formatARS(totals.pendiente)} icon={AlertCircle} variant="stats" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard label="Cobrado (digital)" value={formatARS(totals.cobrado)} icon={CheckCircle2} variant="mvp" />
+        <StatCard label="Pendiente (digital)" value={formatARS(totals.pendiente)} icon={AlertCircle} variant="stats" />
         <StatCard label="Saldo vs premios" value={formatARS(totals.saldoVsPremios)} icon={TrendingUp} hint={`Premios: ${formatARS(FONDO.PREMIO_1 + FONDO.PREMIO_2)}`} />
         <StatCard label="Fechas con aportes" value={groups.length} icon={CalendarClock} />
       </div>
@@ -183,7 +199,7 @@ const Fondo = ({ readOnly = false }: { readOnly?: boolean }) => {
         <EmptyState
           icon={Wallet}
           title="Sin resultados para este filtro"
-          description={groups.length === 0 ? "Los aportes se generan al cargar planteles en cada partido." : "No hay fechas que coincidan con el filtro seleccionado."}
+          description={groups.length === 0 ? `Los aportes se registran desde el ${new Date(FONDO.FECHA_INICIO).toLocaleDateString("es-AR")} al cargar planteles en cada partido.` : "No hay fechas que coincidan con el filtro seleccionado."}
         />
       ) : (
         <div className="space-y-4">
