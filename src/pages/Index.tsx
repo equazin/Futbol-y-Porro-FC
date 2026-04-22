@@ -37,6 +37,7 @@ import stadiumHero from "@/assets/stadium-hero.jpg";
 type ManualMvpConfig = {
   playerId: string;
   note: string;
+  fotoUrl?: string;
 };
 
 const RENDIMIENTO_COLORS = [
@@ -94,6 +95,7 @@ const Index = () => {
   const [openManualDialog, setOpenManualDialog] = useState(false);
   const [manualPlayerId, setManualPlayerId] = useState("");
   const [manualNote, setManualNote] = useState(`${previousYear}`);
+  const [manualFotoUrl, setManualFotoUrl] = useState("");
   const [manualConfig, setManualConfig] = useState<ManualMvpConfig | null>(null);
 
   useEffect(() => {
@@ -112,6 +114,7 @@ const Index = () => {
       setManualConfig(parsed);
       setManualPlayerId(parsed.playerId);
       setManualNote(parsed.note || `${previousYear}`);
+      setManualFotoUrl(parsed.fotoUrl || "");
     } catch {
       setManualConfig(null);
     }
@@ -143,6 +146,7 @@ const Index = () => {
     const payload: ManualMvpConfig = {
       playerId: manualPlayerId,
       note: manualNote.trim() || `${previousYear}`,
+      fotoUrl: manualFotoUrl.trim() || undefined,
     };
     localStorage.setItem(manualStorageKey, JSON.stringify(payload));
     setManualConfig(payload);
@@ -155,6 +159,7 @@ const Index = () => {
     setManualConfig(null);
     setManualPlayerId("");
     setManualNote(`${previousYear}`);
+    setManualFotoUrl("");
     toast.success("MVP del anio pasado limpiado");
   };
 
@@ -170,7 +175,8 @@ const Index = () => {
         />
         <div className="absolute inset-0 bg-gradient-to-tr from-background via-background/80 to-transparent" />
 
-        <div className="relative p-6 md:p-10 min-h-[260px] md:min-h-[300px] grid gap-5 md:grid-cols-[1fr_320px] items-end">
+        <div className="relative p-6 md:p-10 min-h-[300px] md:min-h-[360px] flex flex-col justify-between gap-6">
+          {/* Título */}
           <div>
             <div className="inline-flex items-center gap-2 mb-3 px-3 py-1 rounded-full bg-primary/15 border border-primary/30 w-fit">
               <Sparkles className="h-3 w-3 text-primary" />
@@ -182,24 +188,27 @@ const Index = () => {
             <p className="text-sm md:text-base text-muted-foreground mt-2 max-w-md">Las estadisticas, el ranking, el fondo comun y mas.</p>
           </div>
 
-          <div className="space-y-3">
-            <div className="rounded-xl border border-mvp/30 bg-card/70 backdrop-blur p-3">
+          {/* Fila inferior: MVP ultima fecha (izq, pequeño) + MVP año pasado (der, grande) */}
+          <div className="flex items-end gap-3">
+            {/* MVP ultima fecha — compacto */}
+            <div className="rounded-xl border border-mvp/30 bg-card/70 backdrop-blur p-3 shrink-0 min-w-[160px]">
               <p className="text-[10px] uppercase tracking-[0.2em] text-mvp font-bold mb-2">MVP ultima fecha</p>
               {mvpUltimaFecha?.player ? (
-                <div className="flex items-center gap-3">
-                  <PlayerAvatar nombre={mvpUltimaFecha.player.nombre} foto_url={mvpUltimaFecha.player.foto_url} size="md" />
+                <div className="flex items-center gap-2">
+                  <PlayerAvatar nombre={mvpUltimaFecha.player.nombre} foto_url={mvpUltimaFecha.player.foto_url} size="sm" />
                   <div className="min-w-0">
-                    <p className="font-black truncate">{mvpUltimaFecha.player.apodo ?? mvpUltimaFecha.player.nombre}</p>
-                    <p className="text-xs text-muted-foreground">{fmtFechaMini(mvpUltimaFecha.fecha)}</p>
+                    <p className="font-black text-sm truncate">{mvpUltimaFecha.player.apodo ?? mvpUltimaFecha.player.nombre}</p>
+                    <p className="text-[10px] text-muted-foreground">{fmtFechaMini(mvpUltimaFecha.fecha)}</p>
                   </div>
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground">Sin MVP cargado aun.</p>
+                <p className="text-xs text-muted-foreground">Sin MVP aun.</p>
               )}
             </div>
 
-            <div className="rounded-xl border border-primary/30 bg-card/70 backdrop-blur p-3">
-              <div className="flex items-center justify-between mb-2 gap-2">
+            {/* MVP año pasado — prominente, ocupa el resto */}
+            <div className="flex-1 rounded-xl border border-primary/40 bg-card/80 backdrop-blur p-4 relative">
+              <div className="flex items-center justify-between mb-3 gap-2">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-primary font-bold">MVP {previousYear}</p>
                 {isAdmin && (
                   <div className="flex items-center gap-1">
@@ -215,15 +224,24 @@ const Index = () => {
                 )}
               </div>
               {mvpAnioPasadoManual?.player ? (
-                <div className="flex items-center gap-3">
-                  <PlayerAvatar nombre={mvpAnioPasadoManual.player.nombre} foto_url={mvpAnioPasadoManual.player.foto_url} size="md" />
+                <div className="flex items-center gap-4">
+                  {/* Foto grande — usa fotoUrl custom si está configurada */}
+                  {(manualConfig?.fotoUrl || mvpAnioPasadoManual.player.foto_url) ? (
+                    <img
+                      src={manualConfig?.fotoUrl || mvpAnioPasadoManual.player.foto_url!}
+                      alt={mvpAnioPasadoManual.player.apodo ?? mvpAnioPasadoManual.player.nombre}
+                      className="h-16 w-16 rounded-full object-cover border-2 border-primary/40 shrink-0"
+                    />
+                  ) : (
+                    <PlayerAvatar nombre={mvpAnioPasadoManual.player.nombre} foto_url={null} size="lg" />
+                  )}
                   <div className="min-w-0">
-                    <p className="font-black truncate">{mvpAnioPasadoManual.player.apodo ?? mvpAnioPasadoManual.player.nombre}</p>
-                    <p className="text-xs text-muted-foreground">{mvpAnioPasadoManual.note}</p>
+                    <p className="font-black text-2xl truncate">{mvpAnioPasadoManual.player.apodo ?? mvpAnioPasadoManual.player.nombre}</p>
+                    <p className="text-sm text-muted-foreground">{mvpAnioPasadoManual.note}</p>
                   </div>
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground">{isAdmin ? "Tocá el lápiz para cargar el MVP." : "Sin datos."}</p>
+                <p className="text-sm text-muted-foreground">{isAdmin ? "Tocá el lápiz para cargar el MVP." : "Sin datos."}</p>
               )}
             </div>
           </div>
@@ -461,7 +479,7 @@ const Index = () => {
       <Dialog open={openManualDialog} onOpenChange={setOpenManualDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Cargar MVP {previousYear} (manual)</DialogTitle>
+            <DialogTitle>MVP {previousYear}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-2">
@@ -483,6 +501,23 @@ const Index = () => {
             <div className="space-y-2">
               <Label>Texto secundario</Label>
               <Input value={manualNote} onChange={(e) => setManualNote(e.target.value)} placeholder={`${previousYear}`} />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Foto personalizada (URL)</Label>
+              <Input
+                value={manualFotoUrl}
+                onChange={(e) => setManualFotoUrl(e.target.value)}
+                placeholder="https://... (opcional, reemplaza la foto del jugador)"
+              />
+              {manualFotoUrl && (
+                <img
+                  src={manualFotoUrl}
+                  alt="preview"
+                  className="h-16 w-16 rounded-full object-cover border border-border mt-1"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+              )}
             </div>
           </div>
           <DialogFooter>
