@@ -6,17 +6,17 @@
 
 UPDATE public.players SET elo = v.elo
 FROM (VALUES
-  ('fran',           1005),
+  ('fran',           1075),
   ('chinche',        1050),
-  ('kippes',          680),
-  ('vegui',           845),
+  ('kippes',          880),
+  ('vegui',           1045),
   ('nuno',            800),
   ('peter',          1055),
   ('topa',            880),
   ('mosky',           895),
-  ('faculo airbag',  1065),
+  ('faculo airbag',  1005),
   ('bylu',            855),
-  ('bini',            800),
+  ('bini',            900),
   ('julio metal',     815),
   ('culebra',         945),
   ('dj manzon',       840),

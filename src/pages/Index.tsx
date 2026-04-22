@@ -200,7 +200,7 @@ const Index = () => {
 
             <div className="rounded-xl border border-primary/30 bg-card/70 backdrop-blur p-3">
               <div className="flex items-center justify-between mb-2 gap-2">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-primary font-bold">MVP {previousYear} (manual)</p>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-primary font-bold">MVP {previousYear}</p>
                 {isAdmin && (
                   <div className="flex items-center gap-1">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setOpenManualDialog(true)}>
@@ -223,7 +223,7 @@ const Index = () => {
                   </div>
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground">No cargado manualmente.</p>
+                <p className="text-xs text-muted-foreground">{isAdmin ? "Tocá el lápiz para cargar el MVP." : "Sin datos."}</p>
               )}
             </div>
           </div>

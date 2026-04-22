@@ -326,15 +326,12 @@ const MatchStats = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Sin MVP</SelectItem>
-                {presentes.map((r) => {
-                  const p = playerById(r.player_id);
-                  if (!p) return null;
-                  return (
-                    <SelectItem key={r.player_id} value={r.player_id}>
-                      {p.apodo ?? p.nombre}
-                    </SelectItem>
-                  );
-                })}
+                {/* Si hay plantel cargado, mostrar solo los presentes; si no, todos los jugadores */}
+                {(presentes.length > 0 ? presentes.map((r) => playerById(r.player_id)).filter(Boolean) : players).map((p) => (
+                  <SelectItem key={p!.id} value={p!.id}>
+                    {p!.apodo ?? p!.nombre}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -349,17 +346,22 @@ const MatchStats = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Sin gol destacado</SelectItem>
-                {presentes
-                  .filter((r) => r.goles > 0)
-                  .map((r) => {
-                    const p = playerById(r.player_id);
-                    if (!p) return null;
-                    return (
-                      <SelectItem key={r.player_id} value={r.player_id}>
-                        {p.apodo ?? p.nombre} ({r.goles} gol)
+                {/* Si hay plantel con goles, filtrar por goles; si no, todos los jugadores */}
+                {presentes.some((r) => r.goles > 0)
+                  ? presentes.filter((r) => r.goles > 0).map((r) => {
+                      const p = playerById(r.player_id);
+                      if (!p) return null;
+                      return (
+                        <SelectItem key={r.player_id} value={r.player_id}>
+                          {p.apodo ?? p.nombre} ({r.goles} gol)
+                        </SelectItem>
+                      );
+                    })
+                  : players.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.apodo ?? p.nombre}
                       </SelectItem>
-                    );
-                  })}
+                    ))}
               </SelectContent>
             </Select>
           </div>
