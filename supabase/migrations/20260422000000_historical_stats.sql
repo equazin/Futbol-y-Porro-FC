@@ -41,4 +41,4 @@ FROM (VALUES
 ) AS v(apodo_lower, bonus)
 JOIN public.players p
   ON LOWER(COALESCE(p.apodo, p.nombre)) = v.apodo_lower
- AND p.tipo = 'titular';
+  OR LOWER(p.nombre) = v.apodo_lower;

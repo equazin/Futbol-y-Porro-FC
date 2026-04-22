@@ -52,8 +52,9 @@ FROM (VALUES
   ('nacho suri ind',  3, 0, 0, 0)
 ) AS v(apodo_lower, pj, pg, mvp, gf)
 JOIN public.players p
+  -- Busca por apodo o nombre, sin filtrar por tipo (puede no estar seteado aún)
   ON LOWER(COALESCE(p.apodo, p.nombre)) = v.apodo_lower
- AND p.tipo = 'titular'
+  OR LOWER(p.nombre) = v.apodo_lower
 ON CONFLICT (player_id) DO UPDATE
   SET pj = EXCLUDED.pj,
       pg = EXCLUDED.pg,
