@@ -1,4 +1,4 @@
-# Kick Stats (sin Lovable)
+# Kick Stats
 
 App React + Vite conectada directo a Supabase.
 
