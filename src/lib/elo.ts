@@ -37,6 +37,7 @@ interface PlayerLite {
   id: string;
   elo: number;
   posicion: string | null;
+  promedio_rendimiento?: number | null;
 }
 
 const positionWeight: Record<string, number> = {
@@ -49,11 +50,15 @@ const positionWeight: Record<string, number> = {
 export function balanceTeams(players: PlayerLite[]): { A: string[]; B: string[] } {
   if (players.length === 0) return { A: [], B: [] };
 
-  // Score = elo + peso por posición (delanteros y arqueros suman algo más)
+  // Score = elo + peso por posición + ajuste por promedio de rendimiento
+  // PROM escala de 0-10, cada punto = 15 puntos de score
   const scored = players
     .map((p) => ({
       ...p,
-      score: (p.elo ?? ELO_INICIAL) + (p.posicion ? positionWeight[p.posicion] ?? 0 : 0),
+      score:
+        (p.elo ?? ELO_INICIAL) +
+        (p.posicion ? positionWeight[p.posicion] ?? 0 : 0) +
+        (p.promedio_rendimiento != null ? (p.promedio_rendimiento - 5) * 15 : 0),
     }))
     .sort((a, b) => b.score - a.score);
 

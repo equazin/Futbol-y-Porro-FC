@@ -12,6 +12,7 @@ import { StepTeams } from "./StepTeams";
 import { StepConfirm } from "./StepConfirm";
 import { GuestPlayerDialog } from "./GuestPlayerDialog";
 import { balanceTeams } from "@/lib/elo";
+import { useRanking } from "@/hooks/useRanking";
 import { supabase } from "@/integrations/supabase/client";
 
 const steps = [
@@ -33,6 +34,11 @@ export const MatchWizard = () => {
   const navigate = useNavigate();
   const { data: players = [] } = usePlayers({ onlyActive: true, tipo: "all" });
   const { data: matches = [] } = useMatches();
+  const { data: ranking = [] } = useRanking();
+  const rankingByPlayer = useMemo(
+    () => new Map(ranking.map((r) => [r.player_id, r])),
+    [ranking],
+  );
   const createMatchMut = useCreateMatch();
   const savePlayersMut = useSaveMatchPlayers();
   const { draft, setDraft, resetDraft } = useMatchWizard();
@@ -137,6 +143,7 @@ export const MatchWizard = () => {
       id: p.id,
       elo: Number((p as any).elo ?? 1000),
       posicion: p.posicion,
+      promedio_rendimiento: rankingByPlayer.get(p.id)?.promedio_rendimiento ?? null,
     }));
     const balanced = balanceTeams(lite);
     setDraft({ teamA: balanced.A, teamB: balanced.B });
