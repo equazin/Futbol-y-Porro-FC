@@ -41,7 +41,10 @@ const Ranking = () => {
   if (isLoading) return <p className="text-muted-foreground">Cargando...</p>;
 
   if (isError) {
-    const msg = error instanceof Error ? error.message : "No se pudo cargar el ranking.";
+    const msg =
+      error instanceof Error
+        ? error.message
+        : (error as any)?.message ?? "No se pudo cargar el ranking.";
     return (
       <div className="space-y-3">
         <h1 className="text-2xl md:text-3xl font-black">Ranking</h1>
