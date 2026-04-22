@@ -17,6 +17,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { useMatches, useDeleteMatch, type Match } from "@/hooks/useMatches";
+import { usePlayers } from "@/hooks/usePlayers";
 
 const estadoStyles: Record<string, string> = {
   pendiente: "bg-yellow-500/15 text-yellow-600 border-yellow-500/30",
@@ -41,6 +42,11 @@ const Partidos = ({
 }) => {
   const navigate = useNavigate();
   const { data: matches = [], isLoading } = useMatches();
+  const { data: players = [] } = usePlayers({ onlyActive: false, tipo: "all" });
+  const playersByApodo = new Map(players.map((p) => [
+    (p.apodo ?? p.nombre).toLowerCase(),
+    p,
+  ]));
   const deleteMut = useDeleteMatch();
   const [confirmDelete, setConfirmDelete] = useState<Match | null>(null);
 
@@ -89,7 +95,15 @@ const Partidos = ({
             const notas = (m.notas ?? "").trim();
             // Para partidos históricos el MVP está en notas como "Fecha N · MVP: Nombre"
             const mvpNotasMatch = notas.match(/MVP:\s*(.+)$/i);
-            const mvpNombre = mvp ? (mvp.apodo ?? mvp.nombre) : (mvpNotasMatch ? mvpNotasMatch[1].trim() : null);
+            const mvpNombreTexto = mvpNotasMatch ? mvpNotasMatch[1].trim() : null;
+            // Buscar el player por apodo/nombre para obtener la foto
+            const mvpPlayerFromNotas = mvpNombreTexto
+              ? (playersByApodo.get(mvpNombreTexto.toLowerCase()) ?? null)
+              : null;
+            const mvpData = mvp ?? (mvpPlayerFromNotas
+              ? { nombre: mvpPlayerFromNotas.nombre, apodo: mvpPlayerFromNotas.apodo, foto_url: mvpPlayerFromNotas.foto_url }
+              : null);
+            const mvpNombre = mvpData ? (mvpData.apodo ?? mvpData.nombre) : null;
             const sede = mvpNotasMatch ? notas.replace(/·?\s*MVP:.*$/i, "").trim() : notas;
 
             return (
@@ -124,12 +138,10 @@ const Partidos = ({
                           <span className="text-muted-foreground text-sm">vs</span>
                           <span className="font-black text-2xl">{m.equipo_b_score}</span>
                         </div>
-                        {mvpNombre && (
+                        {mvpNombre && mvpData && (
                           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-mvp/10 border border-mvp/30">
                             <Trophy className="h-3.5 w-3.5 text-mvp shrink-0" />
-                            {mvp && (
-                              <PlayerAvatar nombre={mvp.nombre} foto_url={mvp.foto_url} size="sm" />
-                            )}
+                            <PlayerAvatar nombre={mvpData.nombre} foto_url={mvpData.foto_url} size="sm" />
                             <span className="text-sm font-black text-mvp">{mvpNombre}</span>
                           </div>
                         )}
