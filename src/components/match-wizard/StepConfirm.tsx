@@ -5,8 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { formatARS } from "@/lib/scoring";
-
-export const SEDES = ["Cancha Norte", "Cancha Sur", "Polideportivo", "Club Barrio", "Otra"] as const;
+import type { Venue } from "@/hooks/useVenues";
 
 interface StepConfirmProps {
   selectedPlayers: Player[];
@@ -17,6 +16,7 @@ interface StepConfirmProps {
   venuePreset: string;
   venueCustom: string;
   isFriendly: boolean;
+  venues: Venue[];
   onContributionChange: (value: number) => void;
   onFechaChange: (value: string) => void;
   onVenuePresetChange: (value: string) => void;
@@ -51,6 +51,7 @@ export const StepConfirm = ({
   venuePreset,
   venueCustom,
   isFriendly,
+  venues,
   onContributionChange,
   onFechaChange,
   onVenuePresetChange,
@@ -89,11 +90,12 @@ export const StepConfirm = ({
                 <SelectValue placeholder="Selecciona sede" />
               </SelectTrigger>
               <SelectContent>
-                {SEDES.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
+                {venues.map((venue) => (
+                  <SelectItem key={venue.id} value={venue.nombre}>
+                    {venue.nombre}
                   </SelectItem>
                 ))}
+                <SelectItem value="Otra">Otra</SelectItem>
               </SelectContent>
             </Select>
           </div>

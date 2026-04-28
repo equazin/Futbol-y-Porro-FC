@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { Calendar, Home, LogOut, Receipt, ShieldCheck, Users, Wallet } from "lucide-react";
+import { Calendar, Home, LogOut, MapPin, Receipt, ShieldCheck, Users, Wallet } from "lucide-react";
 import { useAdminAuth } from "@/components/auth/AdminAuthProvider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -8,6 +8,7 @@ const adminNavItems = [
   { to: "/admin", label: "Panel", icon: Home },
   { to: "/admin/partidos", label: "Partidos", icon: Calendar },
   { to: "/admin/jugadores", label: "Jugadores", icon: Users },
+  { to: "/admin/canchas", label: "Canchas", icon: MapPin },
   { to: "/admin/fondo", label: "Fondo", icon: Wallet },
   { to: "/admin/multas", label: "Multas", icon: Receipt },
 ];
@@ -61,7 +62,7 @@ export const AdminLayout = () => {
       </main>
 
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 glass border-t border-border/50">
-        <div className="grid grid-cols-5">
+        <div className="grid grid-cols-6">
           {adminNavItems.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}

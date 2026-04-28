@@ -13,6 +13,7 @@ import { StepConfirm } from "./StepConfirm";
 import { GuestPlayerDialog } from "./GuestPlayerDialog";
 import { balanceTeams } from "@/lib/elo";
 import { useRanking } from "@/hooks/useRanking";
+import { useVenues } from "@/hooks/useVenues";
 import { supabase } from "@/integrations/supabase/client";
 
 const steps = [
@@ -35,6 +36,7 @@ export const MatchWizard = () => {
   const { data: players = [] } = usePlayers({ onlyActive: true, tipo: "all" });
   const { data: matches = [] } = useMatches();
   const { data: ranking = [] } = useRanking();
+  const { data: venues = [] } = useVenues(true);
   const rankingByPlayer = useMemo(
     () => new Map(ranking.map((r) => [r.player_id, r])),
     [ranking],
@@ -350,6 +352,7 @@ export const MatchWizard = () => {
           venuePreset={draft.venuePreset}
           venueCustom={draft.venueCustom}
           isFriendly={draft.isFriendly}
+          venues={venues}
           onContributionChange={(value) => setDraft({ contribution: value })}
           onFechaChange={(value) => setDraft({ fecha: value })}
           onVenuePresetChange={(value) => setDraft({ venuePreset: value })}

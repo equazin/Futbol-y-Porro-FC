@@ -23,6 +23,7 @@ import MatchStats from "./pages/admin/MatchStats";
 import Bonuses from "./pages/admin/Bonuses";
 import Finanzas from "./pages/admin/Finanzas";
 import FinePresets from "./pages/admin/FinePresets";
+import Venues from "./pages/admin/Venues";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -62,6 +63,7 @@ const App = () => (
                 <Route path="/admin/bonuses" element={<Bonuses />} />
                 <Route path="/admin/finanzas" element={<Finanzas />} />
                 <Route path="/admin/fine-presets" element={<FinePresets />} />
+                <Route path="/admin/canchas" element={<Venues />} />
               </Route>
             </Route>
 

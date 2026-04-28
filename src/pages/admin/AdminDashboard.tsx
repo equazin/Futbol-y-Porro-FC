@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Banknote, Calendar, Receipt, Settings2, Star, Users, Wallet } from "lucide-react";
+import { Banknote, Calendar, MapPin, Receipt, Settings2, Star, Users, Wallet } from "lucide-react";
 import { useMatches } from "@/hooks/useMatches";
 import { usePlayers } from "@/hooks/usePlayers";
 import { useFondo } from "@/hooks/useRanking";
@@ -11,6 +11,7 @@ const quickActions = [
   { to: "/admin/partidos/nuevo", label: "Nuevo partido (wizard)", icon: Calendar },
   { to: "/admin/partidos", label: "Gestionar partidos", icon: Calendar },
   { to: "/admin/jugadores", label: "Gestionar jugadores", icon: Users },
+  { to: "/admin/canchas", label: "Gestionar canchas", icon: MapPin },
   { to: "/admin/fondo", label: "Gestionar fondo", icon: Wallet },
   { to: "/admin/multas", label: "Gestionar multas", icon: Receipt },
   { to: "/admin/bonuses", label: "Bonuses y victorias históricas", icon: Star },
