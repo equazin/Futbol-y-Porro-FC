@@ -101,6 +101,74 @@ export interface MatchPlayerInput {
   presente?: boolean;
 }
 
+export interface EloUpdateResult {
+  applied: boolean;
+  skippedReason?: string;
+  eloUpdates: { id: string; elo: number }[];
+}
+
+export const applyMatchEloIfNeeded = async (matchId: string): Promise<EloUpdateResult> => {
+  const [matchRes, mpRes] = await Promise.all([
+    (supabase as any)
+      .from("matches")
+      .select("*")
+      .eq("id", matchId)
+      .single(),
+    supabase
+      .from("match_players")
+      .select("player_id, equipo, presente, player:players(id, elo, tipo)")
+      .eq("match_id", matchId),
+  ]);
+
+  if (matchRes.error) throw matchRes.error;
+  if (mpRes.error) throw mpRes.error;
+
+  const match = matchRes.data as any;
+  if (!match || match.estado === "pendiente") {
+    return { applied: false, skippedReason: "pending", eloUpdates: [] };
+  }
+  if (match.elo_applied === true) {
+    return { applied: false, skippedReason: "already_applied", eloUpdates: [] };
+  }
+
+  const rows = ((mpRes.data ?? []) as any[]).filter((r) => r.presente && r.player?.tipo !== "invitado");
+  const teamA = rows.filter((r) => r.equipo === "A");
+  const teamB = rows.filter((r) => r.equipo === "B");
+  if (teamA.length === 0 || teamB.length === 0) {
+    return { applied: false, skippedReason: "missing_teams", eloUpdates: [] };
+  }
+
+  const scoreA = Number(match.equipo_a_score ?? 0);
+  const scoreB = Number(match.equipo_b_score ?? 0);
+  const eloA = avgElo(teamA.map((r) => Number(r.player?.elo ?? ELO_INICIAL)));
+  const eloB = avgElo(teamB.map((r) => Number(r.player?.elo ?? ELO_INICIAL)));
+  const resultA = teamResult(scoreA, scoreB);
+  const resultB = 1 - resultA;
+  const expA = expectedScore(eloA, eloB);
+  const expB = 1 - expA;
+
+  const eloUpdates: { id: string; elo: number }[] = [
+    ...teamA.map((r) => ({
+      id: r.player_id as string,
+      elo: Math.round(newElo(Number(r.player?.elo ?? ELO_INICIAL), expA, resultA)),
+    })),
+    ...teamB.map((r) => ({
+      id: r.player_id as string,
+      elo: Math.round(newElo(Number(r.player?.elo ?? ELO_INICIAL), expB, resultB)),
+    })),
+  ];
+
+  await Promise.all(eloUpdates.map((u) => supabase.from("players").update({ elo: u.elo } as any).eq("id", u.id)));
+
+  const { error: markErr } = await (supabase as any)
+    .from("matches")
+    .update({ elo_applied: true, elo_applied_at: new Date().toISOString() })
+    .eq("id", matchId);
+  if (markErr) throw markErr;
+
+  return { applied: true, eloUpdates };
+};
+
 export const useSaveMatchPlayers = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -164,12 +232,20 @@ export const useUpdateMatch = () => {
     mutationFn: async ({ id, ...rest }: Partial<Match> & { id: string }) => {
       const { data, error } = await supabase.from("matches").update(rest).eq("id", id).select().single();
       if (error) throw error;
+      const shouldApplyElo =
+        (rest as any).estado !== "pendiente" &&
+        ((rest as any).equipo_a_score !== undefined || (rest as any).equipo_b_score !== undefined);
+      if (shouldApplyElo) {
+        await applyMatchEloIfNeeded(id);
+      }
       return data;
     },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["matches"] });
       qc.invalidateQueries({ queryKey: ["match", vars.id] });
       qc.invalidateQueries({ queryKey: ["rankings"] });
+      qc.invalidateQueries({ queryKey: ["players"] });
+      qc.invalidateQueries({ queryKey: ["chemistry"] });
     },
   });
 };
@@ -182,9 +258,9 @@ export const useCloseMatchVoting = () => {
         supabase.from("votes").select("*").eq("match_id", matchId),
         supabase
           .from("match_players")
-          .select("player_id, equipo, goles, asistencias, presente, player:players(id, elo, tipo)")
+          .select("player_id, goles, asistencias, presente")
           .eq("match_id", matchId),
-        supabase.from("matches").select("equipo_a_score, equipo_b_score").eq("id", matchId).single(),
+        supabase.from("matches").select("id").eq("id", matchId).single(),
       ]);
       if (votesRes.error) throw votesRes.error;
       if (mpRes.error) throw mpRes.error;
@@ -219,29 +295,6 @@ export const useCloseMatchVoting = () => {
       const mvp = pickWinner("mvp");
       const gol = pickWinner("goal");
 
-      const teamA = mp.filter((r) => r.presente && r.equipo === "A" && r.player?.tipo !== "invitado");
-      const teamB = mp.filter((r) => r.presente && r.equipo === "B" && r.player?.tipo !== "invitado");
-      const eloA = avgElo(teamA.map((r) => Number(r.player?.elo ?? ELO_INICIAL)));
-      const eloB = avgElo(teamB.map((r) => Number(r.player?.elo ?? ELO_INICIAL)));
-      const scoreA = matchRes.data.equipo_a_score;
-      const scoreB = matchRes.data.equipo_b_score;
-      const resultA = teamResult(scoreA, scoreB);
-      const resultB = 1 - resultA;
-      const expA = expectedScore(eloA, eloB);
-      const expB = 1 - expA;
-
-      const eloUpdates: { id: string; elo: number }[] = [];
-      teamA.forEach((r) => {
-        const cur = Number(r.player?.elo ?? ELO_INICIAL);
-        eloUpdates.push({ id: r.player_id, elo: Math.round(newElo(cur, expA, resultA)) });
-      });
-      teamB.forEach((r) => {
-        const cur = Number(r.player?.elo ?? ELO_INICIAL);
-        eloUpdates.push({ id: r.player_id, elo: Math.round(newElo(cur, expB, resultB)) });
-      });
-
-      await Promise.all(eloUpdates.map((u) => supabase.from("players").update({ elo: u.elo } as any).eq("id", u.id)));
-
       const { data, error } = await supabase
         .from("matches")
         .update({
@@ -253,7 +306,8 @@ export const useCloseMatchVoting = () => {
         .select()
         .single();
       if (error) throw error;
-      return { match: data, mvp, gol, totalVotes: votes.length, eloUpdates };
+      const eloResult = await applyMatchEloIfNeeded(matchId);
+      return { match: data, mvp, gol, totalVotes: votes.length, eloUpdates: eloResult.eloUpdates };
     },
     onSuccess: (_, matchId) => {
       qc.invalidateQueries({ queryKey: ["matches"] });

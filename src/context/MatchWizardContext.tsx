@@ -11,6 +11,7 @@ export interface MatchDraft {
   fecha: string;
   venuePreset: string;
   venueCustom: string;
+  isFriendly: boolean;
 }
 
 interface MatchWizardContextValue {
@@ -41,6 +42,7 @@ const defaultDraft = (): MatchDraft => ({
   fecha: nextSundayAt11(),
   venuePreset: "Cancha Norte",
   venueCustom: "",
+  isFriendly: false,
 });
 
 const normalizeDraft = (input: MatchDraft): MatchDraft => {
@@ -102,4 +104,3 @@ export const useMatchWizard = () => {
   }
   return ctx;
 };
-

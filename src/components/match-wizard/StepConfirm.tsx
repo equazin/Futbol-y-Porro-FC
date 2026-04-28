@@ -1,4 +1,4 @@
-import { CalendarClock, MapPin, Wallet } from "lucide-react";
+import { CalendarClock, MapPin, Shield, Wallet } from "lucide-react";
 import type { Player } from "@/hooks/usePlayers";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,10 +16,12 @@ interface StepConfirmProps {
   fecha: string;
   venuePreset: string;
   venueCustom: string;
+  isFriendly: boolean;
   onContributionChange: (value: number) => void;
   onFechaChange: (value: string) => void;
   onVenuePresetChange: (value: string) => void;
   onVenueCustomChange: (value: string) => void;
+  onIsFriendlyChange: (value: boolean) => void;
 }
 
 const TeamPreview = ({ title, players, accent }: { title: string; players: Player[]; accent: string }) => (
@@ -48,10 +50,12 @@ export const StepConfirm = ({
   fecha,
   venuePreset,
   venueCustom,
+  isFriendly,
   onContributionChange,
   onFechaChange,
   onVenuePresetChange,
   onVenueCustomChange,
+  onIsFriendlyChange,
 }: StepConfirmProps) => {
   const aportantes = selectedPlayers.filter((p) => (p as any).tipo !== "invitado");
   const invitadosCount = selectedPlayers.length - aportantes.length;
@@ -101,6 +105,27 @@ export const StepConfirm = ({
             <Input value={venueCustom} onChange={(e) => onVenueCustomChange(e.target.value)} placeholder="Ej: Complejo Don Bosco" />
           </div>
         )}
+
+        <div className="rounded-xl border border-border/50 bg-card/40 p-3 flex items-center justify-between gap-3">
+          <div>
+            <Label className="flex items-center gap-1 mb-1">
+              <Shield className="h-4 w-4" />
+              Tipo de partido
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Oficial suma ranking. Amistoso solo actualiza ELO.
+            </p>
+          </div>
+          <Select value={isFriendly ? "amistoso" : "oficial"} onValueChange={(v) => onIsFriendlyChange(v === "amistoso")}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="oficial">Oficial</SelectItem>
+              <SelectItem value="amistoso">Amistoso</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
         <div className="grid md:grid-cols-2 gap-3">
           <div className="space-y-2">

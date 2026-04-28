@@ -232,6 +232,8 @@ export const MatchWizard = () => {
         fecha: new Date(draft.fecha).toISOString(),
         notas: venue,
         estado: "pendiente",
+        is_friendly: draft.isFriendly,
+        elo_applied: false,
       } as any);
 
       const playersPayload = [
@@ -347,10 +349,12 @@ export const MatchWizard = () => {
           fecha={draft.fecha}
           venuePreset={draft.venuePreset}
           venueCustom={draft.venueCustom}
+          isFriendly={draft.isFriendly}
           onContributionChange={(value) => setDraft({ contribution: value })}
           onFechaChange={(value) => setDraft({ fecha: value })}
           onVenuePresetChange={(value) => setDraft({ venuePreset: value })}
           onVenueCustomChange={(value) => setDraft({ venueCustom: value })}
+          onIsFriendlyChange={(value) => setDraft({ isFriendly: value })}
         />
       )}
 

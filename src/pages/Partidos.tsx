@@ -92,6 +92,7 @@ const Partidos = ({
         <div className="space-y-3">
           {matches.map((m) => {
             const mvp = (m as any).mvp as { nombre: string; apodo: string | null; foto_url: string | null } | null;
+            const isFriendly = Boolean((m as any).is_friendly);
             const notas = (m.notas ?? "").trim();
             // Para partidos históricos el MVP está en notas como "Fecha N · MVP: Nombre"
             const mvpNotasMatch = notas.match(/MVP:\s*(.+)$/i);
@@ -122,6 +123,11 @@ const Partidos = ({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${estadoStyles[m.estado]}`}>{estadoLabels[m.estado] ?? m.estado}</span>
+                      {isFriendly && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border border-stats/30 bg-stats/10 text-stats">
+                          Amistoso
+                        </span>
+                      )}
                       <span className="text-xs text-muted-foreground">{fmtDiaSemana(m.fecha)}</span>
                     </div>
 

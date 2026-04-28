@@ -91,6 +91,8 @@ const MatchStats = () => {
   const mvpTally = useMemo(() => tallyVotes(votes, "mvp"), [votes]);
   const goalTally = useMemo(() => tallyVotes(votes, "goal"), [votes]);
   const totalVoters = useMemo(() => new Set(votes.map((v) => v.voter_player_id)).size, [votes]);
+  const isFriendly = Boolean((match as any)?.is_friendly);
+  const eloApplied = Boolean((match as any)?.elo_applied);
 
   const closeBlockers = useMemo(() => {
     const issues: string[] = [];
@@ -149,7 +151,7 @@ const MatchStats = () => {
         mvp_player_id: mvpId === "none" ? null : mvpId,
         gol_de_la_fecha_player_id: golFechaId === "none" ? null : golFechaId,
       });
-      toast.success("Resultado guardado");
+      toast.success(estado === "pendiente" ? "Resultado guardado" : "Resultado guardado · ELO actualizado");
     } catch (e: any) {
       toast.error(e.message ?? "No se pudo guardar el resultado.");
     }
@@ -268,6 +270,18 @@ const MatchStats = () => {
             <p className="text-sm text-muted-foreground">
               Equipos definidos: {teamA.length} vs {teamB.length} · Carga rapida de goles, asistencias y calificacion.
             </p>
+            <div className="flex flex-wrap gap-2 mt-2">
+              <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded border ${
+                isFriendly ? "border-stats/40 bg-stats/10 text-stats" : "border-primary/40 bg-primary/10 text-primary"
+              }`}>
+                {isFriendly ? "Amistoso · solo ELO" : "Oficial · ranking + ELO"}
+              </span>
+              {eloApplied && (
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded border border-mvp/40 bg-mvp/10 text-mvp">
+                  ELO aplicado
+                </span>
+              )}
+            </div>
           </div>
           <Button asChild variant="ghost">
             <Link to="/admin/partidos">

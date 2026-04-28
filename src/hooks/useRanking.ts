@@ -67,7 +67,7 @@ export const useRanking = () =>
       const [playersRes, matchesRes, matchPlayersRes, bonusesRes, panelWinsRes, historicalRes] = await Promise.all([
         withTimeout((supabase as any).from("players").select("id, nombre, apodo, foto_url, elo, activo"), "jugadores"),
         withTimeout(
-          (supabase as any).from("matches").select("id, estado, equipo_a_score, equipo_b_score, mvp_player_id, gol_de_la_fecha_player_id"),
+          (supabase as any).from("matches").select("*"),
           "partidos",
         ),
         withTimeout(
@@ -113,6 +113,7 @@ export const useRanking = () =>
         equipo_b_score: number;
         mvp_player_id: string | null;
         gol_de_la_fecha_player_id: string | null;
+        is_friendly?: boolean | null;
       }>;
       const matchPlayers = (matchPlayersRes.data ?? []) as Array<{
         player_id: string;
@@ -165,7 +166,11 @@ export const useRanking = () =>
         });
       }
 
-      const closedMatches = new Map(matches.filter((m) => m.estado === "cerrado").map((m) => [m.id, m]));
+      const closedMatches = new Map(
+        matches
+          .filter((m) => m.estado === "cerrado" && !m.is_friendly)
+          .map((m) => [m.id, m])
+      );
       const rows = new Map<
         string,
         RankingRow & {

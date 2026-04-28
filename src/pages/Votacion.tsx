@@ -15,9 +15,9 @@ const Votacion = () => {
   const { data: matches = [] } = useMatches();
   const { data: players = [] } = usePlayers();
 
-  // Solo partidos votables: no cerrados (pendiente o jugado)
+  // Solo partidos oficiales votables: no cerrados (pendiente o jugado)
   const votables = useMemo(
-    () => matches.filter((m) => m.estado !== "cerrado"),
+    () => matches.filter((m) => m.estado !== "cerrado" && !(m as any).is_friendly),
     [matches]
   );
 
