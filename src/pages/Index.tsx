@@ -61,9 +61,21 @@ const Index = () => {
   const { data: fondo } = useFondo();
 
   const ultimoPartido = useMemo(() => matches.find((m) => m.estado !== "pendiente"), [matches]);
+  const partidosOficiales = useMemo(() => matches.filter((m) => !(m as any).is_friendly), [matches]);
+  const ultimoPartidoOficialConMvp = useMemo(
+    () => partidosOficiales.find((m) => m.estado === "cerrado" && (m as any).mvp),
+    [partidosOficiales],
+  );
   const proximoPartido = useMemo(() => [...matches].reverse().find((m) => m.estado === "pendiente"), [matches]);
   const top10 = ranking.slice(0, 10);
-  const partidosJugadosCount = useMemo(() => matches.filter((m) => m.estado === "cerrado").length, [matches]);
+  const partidosJugadosCount = useMemo(
+    () => partidosOficiales.filter((m) => m.estado === "cerrado").length,
+    [partidosOficiales],
+  );
+  const mvpsEntregadosCount = useMemo(
+    () => partidosOficiales.filter((m) => m.mvp_player_id).length,
+    [partidosOficiales],
+  );
 
   const rendimientoActual = useMemo(
     () =>
@@ -121,12 +133,12 @@ const Index = () => {
   }, [manualStorageKey, previousYear]);
 
   const mvpUltimaFecha = useMemo(() => {
-    if (!ultimoPartido || !(ultimoPartido as any).mvp) return null;
+    if (!ultimoPartidoOficialConMvp || !(ultimoPartidoOficialConMvp as any).mvp) return null;
     return {
-      player: (ultimoPartido as any).mvp,
-      fecha: ultimoPartido.fecha,
+      player: (ultimoPartidoOficialConMvp as any).mvp,
+      fecha: ultimoPartidoOficialConMvp.fecha,
     };
-  }, [ultimoPartido]);
+  }, [ultimoPartidoOficialConMvp]);
 
   const mvpAnioPasadoManual = useMemo(() => {
     if (!manualConfig) return null;
@@ -253,7 +265,7 @@ const Index = () => {
           variant="mvp"
           hint={fondo ? `${formatARS(fondo.pendiente)} por cobrar` : undefined}
         />
-        <StatCard label="MVPs entregados" value={matches.filter((m) => m.mvp_player_id).length} icon={Star} />
+        <StatCard label="MVPs entregados" value={mvpsEntregadosCount} icon={Star} />
       </section>
 
       <section className="grid md:grid-cols-2 gap-4">
