@@ -1,16 +1,20 @@
 import { useMemo, useState } from "react";
-import { Wallet, TrendingUp, AlertCircle, CheckCircle2, Users, CalendarClock, Banknote } from "lucide-react";
+import { Wallet, TrendingUp, AlertCircle, CheckCircle2, Users, CalendarClock, Banknote, Plus, Trash2, ArrowDownCircle, ArrowUpCircle } from "lucide-react";
 import { fmtPartidoConAño } from "@/lib/dates";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { StatCard } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatARS, FONDO } from "@/lib/scoring";
 import { useFondo } from "@/hooks/useRanking";
 
@@ -43,9 +47,23 @@ type MatchGroup = {
   progreso: number;
 };
 
+type FundMovement = {
+  id: string;
+  fecha: string;
+  tipo: "ingreso" | "egreso";
+  monto: number;
+  motivo: string;
+  created_at: string;
+};
+
 const Fondo = ({ readOnly = false }: { readOnly?: boolean }) => {
   const qc = useQueryClient();
   const [filter, setFilter] = useState<"all" | "pending" | "paid">("all");
+  const [movementOpen, setMovementOpen] = useState(false);
+  const [movementTipo, setMovementTipo] = useState<"ingreso" | "egreso">("egreso");
+  const [movementMonto, setMovementMonto] = useState("");
+  const [movementMotivo, setMovementMotivo] = useState("");
+  const [movementFecha, setMovementFecha] = useState(() => new Date().toISOString().slice(0, 10));
   const { data: fondoGlobal } = useFondo();
 
   const { data: contribs = [], isLoading } = useQuery({
@@ -60,6 +78,22 @@ const Fondo = ({ readOnly = false }: { readOnly?: boolean }) => {
     },
   });
 
+  const { data: movements = [] } = useQuery({
+    queryKey: ["fund_movements"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("fund_movements")
+        .select("id, fecha, tipo, monto, motivo, created_at")
+        .order("fecha", { ascending: false })
+        .order("created_at", { ascending: false });
+      if (error) {
+        if (error.code === "42P01" || error.code === "PGRST205") return [];
+        throw error;
+      }
+      return (data ?? []) as FundMovement[];
+    },
+  });
+
   const togglePagado = useMutation({
     mutationFn: async ({ id, pagado }: { id: string; pagado: boolean }) => {
       const { error } = await supabase.from("contributions").update({ pagado }).eq("id", id);
@@ -68,6 +102,47 @@ const Fondo = ({ readOnly = false }: { readOnly?: boolean }) => {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["contributions_full"] });
       qc.invalidateQueries({ queryKey: ["fondo"] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const createMovement = useMutation({
+    mutationFn: async () => {
+      const monto = Math.round(Number(movementMonto));
+      const motivo = movementMotivo.trim();
+      if (!monto || monto <= 0) throw new Error("Ingresa un monto valido");
+      if (!motivo) throw new Error("Ingresa un motivo");
+
+      const { error } = await (supabase as any).from("fund_movements").insert({
+        tipo: movementTipo,
+        monto,
+        motivo,
+        fecha: new Date(`${movementFecha}T12:00:00`).toISOString(),
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["fund_movements"] });
+      qc.invalidateQueries({ queryKey: ["fondo"] });
+      toast.success("Movimiento registrado");
+      setMovementOpen(false);
+      setMovementTipo("egreso");
+      setMovementMonto("");
+      setMovementMotivo("");
+      setMovementFecha(new Date().toISOString().slice(0, 10));
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const deleteMovement = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase as any).from("fund_movements").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["fund_movements"] });
+      qc.invalidateQueries({ queryKey: ["fondo"] });
+      toast.success("Movimiento eliminado");
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -163,6 +238,9 @@ const Fondo = ({ readOnly = false }: { readOnly?: boolean }) => {
                 {fondoGlobal.multasCobradas > 0 && (
                   <span>Multas cobradas: <span className="font-bold text-foreground">{formatARS(fondoGlobal.multasCobradas)}</span></span>
                 )}
+                {(fondoGlobal.manualSaldo ?? 0) !== 0 && (
+                  <span>Ajustes manuales: <span className="font-bold text-foreground">{formatARS(fondoGlobal.manualSaldo)}</span></span>
+                )}
               </div>
             </div>
           )}
@@ -176,12 +254,72 @@ const Fondo = ({ readOnly = false }: { readOnly?: boolean }) => {
         </div>
       </header>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <StatCard label="Cobrado (digital)" value={formatARS(totals.cobrado)} icon={CheckCircle2} variant="mvp" />
         <StatCard label="Pendiente (digital)" value={formatARS(totals.pendiente)} icon={AlertCircle} variant="stats" />
         <StatCard label="Saldo vs premios" value={formatARS(totals.saldoVsPremios)} icon={TrendingUp} hint={`Premios: ${formatARS(FONDO.PREMIO_1 + FONDO.PREMIO_2)}`} />
+        <StatCard label="Ajustes manuales" value={formatARS(fondoGlobal?.manualSaldo ?? 0)} icon={TrendingUp} hint={`Ingresos: ${formatARS(fondoGlobal?.manualIngresos ?? 0)} · Egresos: ${formatARS(fondoGlobal?.manualEgresos ?? 0)}`} />
         <StatCard label="Fechas con aportes" value={groups.length} icon={CalendarClock} />
       </div>
+
+      <section className="rounded-2xl border border-border/60 bg-gradient-card overflow-hidden shadow-card">
+        <div className="px-4 py-3 border-b border-border/40 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="font-black flex items-center gap-2">
+              <Banknote className="h-4 w-4 text-mvp" />
+              Movimientos manuales
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Registra ingresos o egresos del fondo para eventos, compras o ajustes de caja.
+            </p>
+          </div>
+          {!readOnly && (
+            <Button onClick={() => setMovementOpen(true)} size="sm" className="shrink-0">
+              <Plus className="h-4 w-4 mr-1.5" />
+              Nuevo movimiento
+            </Button>
+          )}
+        </div>
+
+        {movements.length === 0 ? (
+          <div className="p-6 text-center text-sm text-muted-foreground">
+            No hay movimientos manuales registrados.
+          </div>
+        ) : (
+          <div className="divide-y divide-border/30">
+            {movements.map((m) => {
+              const isIncome = m.tipo === "ingreso";
+              return (
+                <div key={m.id} className="p-3 flex items-center gap-3">
+                  <div className={`h-10 w-10 rounded-xl grid place-items-center ${isIncome ? "bg-primary/15 text-primary" : "bg-destructive/15 text-destructive"}`}>
+                    {isIncome ? <ArrowUpCircle className="h-5 w-5" /> : <ArrowDownCircle className="h-5 w-5" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold truncate">{m.motivo}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(m.fecha).toLocaleDateString("es-AR")} · {isIncome ? "Ingreso" : "Egreso"}
+                    </p>
+                  </div>
+                  <p className={`font-black ${isIncome ? "text-primary" : "text-destructive"}`}>
+                    {isIncome ? "+" : "-"}{formatARS(Number(m.monto))}
+                  </p>
+                  {!readOnly && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive hover:bg-destructive/10"
+                      onClick={() => deleteMovement.mutate(m.id)}
+                      disabled={deleteMovement.isPending}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       <div className="flex flex-wrap items-center gap-2">
         <Button variant={filter === "all" ? "default" : "outline"} size="sm" onClick={() => setFilter("all")}>
@@ -263,6 +401,65 @@ const Fondo = ({ readOnly = false }: { readOnly?: boolean }) => {
             </div>
           ))}
         </div>
+      )}
+
+      {!readOnly && (
+        <Dialog open={movementOpen} onOpenChange={setMovementOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Nuevo movimiento del fondo</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label>Tipo</Label>
+                <Select value={movementTipo} onValueChange={(v) => setMovementTipo(v as "ingreso" | "egreso")}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="egreso">Egreso (sale plata)</SelectItem>
+                    <SelectItem value="ingreso">Ingreso (entra plata)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Monto</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    step={100}
+                    value={movementMonto}
+                    onChange={(e) => setMovementMonto(e.target.value)}
+                    placeholder="Ej: 15000"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Fecha</Label>
+                  <Input type="date" value={movementFecha} onChange={(e) => setMovementFecha(e.target.value)} />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Motivo</Label>
+                <Input
+                  value={movementMotivo}
+                  onChange={(e) => setMovementMotivo(e.target.value)}
+                  placeholder="Ej: Compra comida evento del equipo"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setMovementOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={() => createMovement.mutate()} disabled={createMovement.isPending}>
+                Registrar movimiento
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

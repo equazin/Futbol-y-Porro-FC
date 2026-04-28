@@ -306,11 +306,16 @@ export const useFondo = () =>
   useQuery({
     queryKey: ["fondo"],
     queryFn: async () => {
-      const [contribsRes, finesRes] = await Promise.all([
+      const [contribsRes, finesRes, movementsRes] = await Promise.all([
         supabase
           .from("contributions")
           .select("monto, pagado, match:matches(fecha)"),
         (supabase as any).from("fines").select("monto, pagada"),
+        (supabase as any)
+          .from("fund_movements")
+          .select("tipo, monto")
+          .then((res: any) => res)
+          .catch(() => ({ data: [], error: null })),
       ]);
       if (contribsRes.error) throw contribsRes.error;
       if (finesRes.error) throw finesRes.error;
@@ -321,6 +326,10 @@ export const useFondo = () =>
         match: { fecha: string } | null;
       }>;
       const fines = (finesRes.data ?? []) as { monto: number; pagada: boolean }[];
+      const movements = ((movementsRes as any).data ?? []) as Array<{
+        tipo: "ingreso" | "egreso";
+        monto: number;
+      }>;
 
       // Solo contar contribuciones desde FONDO.FECHA_INICIO
       const contribs = allContribs.filter((c) => {
@@ -332,6 +341,13 @@ export const useFondo = () =>
       const aporteCobrado = contribs.filter((r) => r.pagado).reduce((s, r) => s + Number(r.monto), 0);
       const multasTotal = fines.reduce((s, r) => s + Number(r.monto), 0);
       const multasCobradas = fines.filter((r) => r.pagada).reduce((s, r) => s + Number(r.monto), 0);
+      const manualIngresos = movements
+        .filter((r) => r.tipo === "ingreso")
+        .reduce((s, r) => s + Number(r.monto), 0);
+      const manualEgresos = movements
+        .filter((r) => r.tipo === "egreso")
+        .reduce((s, r) => s + Number(r.monto), 0);
+      const manualSaldo = manualIngresos - manualEgresos;
 
       // Total real = base histórica + aportes digitales
       const total = FONDO.BASE + aportesTotal;
@@ -345,11 +361,14 @@ export const useFondo = () =>
         multasTotal,
         multasCobradas,
         multasPendientes: multasTotal - multasCobradas,
-        // Caja efectiva: base + aportes cobrados + multas cobradas
-        caja: FONDO.BASE + aporteCobrado + multasCobradas,
+        // Caja efectiva: base + aportes cobrados + multas cobradas + ajustes manuales
+        caja: FONDO.BASE + aporteCobrado + multasCobradas + manualSaldo,
         // Desglose para mostrar en la UI
         base: FONDO.BASE,
         aportesDigitales: aporteCobrado,
+        manualIngresos,
+        manualEgresos,
+        manualSaldo,
       };
     },
   });
