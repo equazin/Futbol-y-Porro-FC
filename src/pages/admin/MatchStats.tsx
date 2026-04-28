@@ -148,8 +148,8 @@ const MatchStats = () => {
         equipo_a_score: scoreA,
         equipo_b_score: scoreB,
         estado: estado as any,
-        mvp_player_id: mvpId === "none" ? null : mvpId,
-        gol_de_la_fecha_player_id: golFechaId === "none" ? null : golFechaId,
+        mvp_player_id: isFriendly || mvpId === "none" ? null : mvpId,
+        gol_de_la_fecha_player_id: isFriendly || golFechaId === "none" ? null : golFechaId,
       });
       toast.success(estado === "pendiente" ? "Resultado guardado" : "Resultado guardado · ELO actualizado");
     } catch (e: any) {
@@ -329,56 +329,60 @@ const MatchStats = () => {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
-            <Label className="flex items-center gap-1">
-              <Star className="h-3.5 w-3.5 text-mvp" />
-              MVP
-            </Label>
-            <Select value={mvpId} onValueChange={setMvpId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Sin MVP" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Sin MVP</SelectItem>
-                {/* Si hay plantel cargado, mostrar solo los presentes; si no, todos los jugadores */}
-                {(presentes.length > 0 ? presentes.map((r) => playerById(r.player_id)).filter(Boolean) : players).map((p) => (
-                  <SelectItem key={p!.id} value={p!.id}>
-                    {p!.apodo ?? p!.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label className="flex items-center gap-1">
-              <Goal className="h-3.5 w-3.5 text-stats" />
-              Gol de la fecha
-            </Label>
-            <Select value={golFechaId} onValueChange={setGolFechaId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Sin gol destacado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Sin gol destacado</SelectItem>
-                {/* Si hay plantel con goles, filtrar por goles; si no, todos los jugadores */}
-                {presentes.some((r) => r.goles > 0)
-                  ? presentes.filter((r) => r.goles > 0).map((r) => {
-                      const p = playerById(r.player_id);
-                      if (!p) return null;
-                      return (
-                        <SelectItem key={r.player_id} value={r.player_id}>
-                          {p.apodo ?? p.nombre} ({r.goles} gol)
-                        </SelectItem>
-                      );
-                    })
-                  : players.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.apodo ?? p.nombre}
+          {!isFriendly && (
+            <>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1">
+                  <Star className="h-3.5 w-3.5 text-mvp" />
+                  MVP
+                </Label>
+                <Select value={mvpId} onValueChange={setMvpId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sin MVP" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin MVP</SelectItem>
+                    {/* Si hay plantel cargado, mostrar solo los presentes; si no, todos los jugadores */}
+                    {(presentes.length > 0 ? presentes.map((r) => playerById(r.player_id)).filter(Boolean) : players).map((p) => (
+                      <SelectItem key={p!.id} value={p!.id}>
+                        {p!.apodo ?? p!.nombre}
                       </SelectItem>
                     ))}
-              </SelectContent>
-            </Select>
-          </div>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1">
+                  <Goal className="h-3.5 w-3.5 text-stats" />
+                  Gol de la fecha
+                </Label>
+                <Select value={golFechaId} onValueChange={setGolFechaId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sin gol destacado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin gol destacado</SelectItem>
+                    {/* Si hay plantel con goles, filtrar por goles; si no, todos los jugadores */}
+                    {presentes.some((r) => r.goles > 0)
+                      ? presentes.filter((r) => r.goles > 0).map((r) => {
+                          const p = playerById(r.player_id);
+                          if (!p) return null;
+                          return (
+                            <SelectItem key={r.player_id} value={r.player_id}>
+                              {p.apodo ?? p.nombre} ({r.goles} gol)
+                            </SelectItem>
+                          );
+                        })
+                      : players.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.apodo ?? p.nombre}
+                          </SelectItem>
+                        ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
         </div>
 
         <Button onClick={onSaveResult} disabled={updateMut.isPending} className="w-full">
@@ -387,6 +391,7 @@ const MatchStats = () => {
         </Button>
       </section>
 
+      {!isFriendly && (
       <section className="rounded-2xl border border-mvp/30 bg-gradient-card p-4 space-y-4">
         <div className="flex items-center justify-between gap-2">
           <h2 className="font-black flex items-center gap-2">
@@ -462,7 +467,9 @@ const MatchStats = () => {
           {estado === "cerrado" ? "Partido cerrado" : "Cerrar votación y aplicar ganadores"}
         </Button>
       </section>
+      )}
 
+      {!isFriendly && (
       <AlertDialog open={confirmClose} onOpenChange={setConfirmClose}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -479,6 +486,7 @@ const MatchStats = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      )}
     </div>
   );
 };

@@ -115,7 +115,7 @@ export const StepConfirm = ({
               Tipo de partido
             </Label>
             <p className="text-xs text-muted-foreground">
-              Oficial suma ranking. Amistoso solo actualiza ELO.
+              Oficial suma ranking y ELO. Amistoso solo actualiza ELO.
             </p>
           </div>
           <Select value={isFriendly ? "amistoso" : "oficial"} onValueChange={(v) => onIsFriendlyChange(v === "amistoso")}>
