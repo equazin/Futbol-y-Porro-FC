@@ -68,6 +68,7 @@ FROM (VALUES
   ('jony sucio',      3, 1, 0, 0),
   ('valencia',        3, 1, 0, 0),
   ('isleño',          3, 0, 0, 0),
+  ('isleno',          3, 0, 0, 0),
   ('pibito',          3, 0, 0, 0),
   ('nacho suri ind',  3, 0, 0, 0)
 ) AS v(apodo_lower, pj, pg, mvp, gf)

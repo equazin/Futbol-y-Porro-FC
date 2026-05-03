@@ -28,6 +28,7 @@ FROM (VALUES
   ('jony sucio',      960),
   ('valencia',        960),
   ('isleño',          880),
+  ('isleno',          880),
   ('pibito',          880),
   ('nacho suri ind',  880)
 ) AS v(apodo_lower, elo)
