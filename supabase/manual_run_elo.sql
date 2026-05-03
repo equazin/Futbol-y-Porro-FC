@@ -28,6 +28,7 @@ FROM (VALUES
   ('jony sucio',      960),
   ('valencia',        960),
   ('isleño',          880),
+  ('pibito',          880),
   ('nacho suri ind',  880)
 ) AS v(apodo_lower, elo)
 WHERE LOWER(COALESCE(players.apodo, players.nombre)) = v.apodo_lower

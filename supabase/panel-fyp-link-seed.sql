@@ -65,7 +65,8 @@ values
   ('Nuno', 'Nuno', 'https://raw.githubusercontent.com/Kippess/panel-fyp/main/nuno.jpg', true),
   ('Peter', 'Peter', 'https://raw.githubusercontent.com/Kippess/panel-fyp/main/peter.jpg', true),
   ('Tincho', 'Tincho', 'https://raw.githubusercontent.com/Kippess/panel-fyp/main/ticnho.jpg', true),
-  ('Nacho Suri IND', 'Nacho Suri IND', 'https://raw.githubusercontent.com/Kippess/panel-fyp/main/Nacho.jpg', true);
+  ('Nacho Suri IND', 'Nacho Suri IND', 'https://raw.githubusercontent.com/Kippess/panel-fyp/main/Nacho.jpg', true),
+  ('Pibito', 'Pibito', 'https://raw.githubusercontent.com/equazin/Futbol-y-Porro-FC/main/logo.jpg', true);
 
 -- 4) Partidos
 insert into public.matches (fecha, equipo_a_score, equipo_b_score, estado, mvp_player_id, notas)
