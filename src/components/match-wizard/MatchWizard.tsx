@@ -229,9 +229,19 @@ export const MatchWizard = () => {
     if (!validateStep(1) || !validateStep(2) || !validateStep(3)) return;
 
     const venue = draft.venuePreset === "Otra" ? draft.venueCustom.trim() : draft.venuePreset.trim();
+    const fecha = new Date(draft.fecha).toISOString();
+    const fechaTime = new Date(fecha).getTime();
+    const existingMatch = matches.find((match) => new Date(match.fecha).getTime() === fechaTime);
+
+    if (existingMatch) {
+      toast.info("Ya existe un partido con esa fecha y hora. Te llevo a editarlo.");
+      navigate(`/admin/partidos/${existingMatch.id}/stats`);
+      return;
+    }
+
     try {
       const match = await createMatchMut.mutateAsync({
-        fecha: new Date(draft.fecha).toISOString(),
+        fecha,
         notas: venue,
         estado: "pendiente",
         is_friendly: draft.isFriendly,
@@ -268,6 +278,10 @@ export const MatchWizard = () => {
       setStep(1);
       navigate(`/admin/partidos/${match.id}/stats`);
     } catch (e: any) {
+      if (e?.code === "23505" && e?.message?.includes("matches_fecha_key")) {
+        toast.error("Ya existe un partido con esa fecha y hora. Cambia la fecha o editalo desde Partidos.");
+        return;
+      }
       toast.error(e.message ?? "No se pudo crear el partido.");
     }
   };
