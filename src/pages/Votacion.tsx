@@ -31,22 +31,36 @@ const Votacion = () => {
   const { data: votes = [] } = useVotes(matchId ?? undefined);
   const { data: voted } = useHasVoted(matchId ?? undefined, voterId ?? undefined);
   const castMut = useCastVotes();
+  const selectedMatch = matches.find((m) => m.id === matchId);
 
-  const presentes = useMemo(
-    () => mp.filter((r: any) => r.presente).map((r: any) => r.player),
+  const winnerTeam = useMemo<"A" | "B" | null>(() => {
+    if (!selectedMatch || selectedMatch.estado !== "jugado") return null;
+    const scoreA = Number(selectedMatch.equipo_a_score ?? 0);
+    const scoreB = Number(selectedMatch.equipo_b_score ?? 0);
+    if (scoreA > scoreB) return "A";
+    if (scoreB > scoreA) return "B";
+    return null;
+  }, [selectedMatch]);
+
+  const officialPresentRows = useMemo(
+    () => mp.filter((r: any) => r.presente && r.player?.tipo !== "invitado"),
     [mp]
   );
   const votablesPresentes = useMemo(
-    () => presentes.filter((p: any) => p?.tipo !== "invitado"),
-    [presentes]
+    () => officialPresentRows.map((r: any) => r.player),
+    [officialPresentRows]
   );
   const votablePlayerIds = useMemo(
     () => new Set(votablesPresentes.map((p: any) => p.id)),
     [votablesPresentes]
   );
-  const goleadores = useMemo(
-    () => mp.filter((r: any) => r.presente && r.goles > 0 && r.player?.tipo !== "invitado"),
-    [mp]
+  const mvpCandidates = useMemo(
+    () => officialPresentRows.filter((r: any) => r.equipo === winnerTeam).map((r: any) => r.player),
+    [officialPresentRows, winnerTeam]
+  );
+  const mvpCandidateIds = useMemo(
+    () => new Set(mvpCandidates.map((p: any) => p.id)),
+    [mvpCandidates]
   );
 
   // Si ya votó este jugador, saltar a "done" para mostrar resultados
@@ -64,7 +78,11 @@ const Votacion = () => {
 
   const onSubmit = async () => {
     if (!matchId || !voterId || !mvpVote || !goalVote) return;
-    if (!votablePlayerIds.has(voterId) || !votablePlayerIds.has(mvpVote) || !votablePlayerIds.has(goalVote)) {
+    if (!winnerTeam) {
+      toast.error("Para votar MVP primero tiene que estar cargado el resultado con equipo ganador.");
+      return;
+    }
+    if (!votablePlayerIds.has(voterId) || !mvpCandidateIds.has(mvpVote) || !votablePlayerIds.has(goalVote)) {
       toast.error("Los jugadores invitados no participan en la votacion de MVP ni Gol de la fecha.");
       return;
     }
@@ -77,18 +95,20 @@ const Votacion = () => {
     }
   };
 
-  const selectedMatch = matches.find((m) => m.id === matchId);
-
   // Resultados en vivo
-  const eligibleVotes = useMemo(
+  const eligibleMvpVotes = useMemo(
+    () => votes.filter((vote) => mvpCandidateIds.has(vote.voted_player_id)),
+    [votes, mvpCandidateIds]
+  );
+  const eligibleGoalVotes = useMemo(
     () => votes.filter((vote) => votablePlayerIds.has(vote.voted_player_id)),
     [votes, votablePlayerIds]
   );
-  const mvpTally = useMemo(() => tallyVotes(eligibleVotes, "mvp"), [eligibleVotes]);
-  const goalTally = useMemo(() => tallyVotes(eligibleVotes, "goal"), [eligibleVotes]);
+  const mvpTally = useMemo(() => tallyVotes(eligibleMvpVotes, "mvp"), [eligibleMvpVotes]);
+  const goalTally = useMemo(() => tallyVotes(eligibleGoalVotes, "goal"), [eligibleGoalVotes]);
   const totalVoters = useMemo(
-    () => new Set(eligibleVotes.map((v) => v.voter_player_id)).size,
-    [eligibleVotes]
+    () => new Set([...eligibleMvpVotes, ...eligibleGoalVotes].map((v) => v.voter_player_id)).size,
+    [eligibleMvpVotes, eligibleGoalVotes]
   );
 
   const playerById = (id: string) => players.find((p) => p.id === id);
@@ -219,29 +239,35 @@ const Votacion = () => {
                   <h3 className="font-black">MVP del partido</h3>
                 </div>
                 <p className="text-xs text-muted-foreground mb-3">
-                  Elegí al mejor jugador (no podés votarte a vos mismo).
+                  Solo entre jugadores oficiales del equipo ganador.
                 </p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {votablesPresentes
-                    .filter((p: any) => p.id !== voterId)
-                    .map((p: any) => (
-                      <button
-                        key={p.id}
-                        onClick={() => setMvpVote(p.id)}
-                        className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-smooth ${
-                          mvpVote === p.id
-                            ? "border-mvp bg-mvp/15 shadow-glow"
-                            : "border-border/40 bg-card/50 hover:border-mvp/40"
-                        }`}
-                      >
-                        <PlayerAvatar nombre={p.nombre} foto_url={p.foto_url} size="md" />
-                        <p className="font-bold text-xs text-center truncate w-full">
-                          {p.apodo ?? p.nombre}
-                        </p>
-                        {mvpVote === p.id && <Check className="h-3 w-3 text-mvp" />}
-                      </button>
-                    ))}
-                </div>
+                {!winnerTeam ? (
+                  <p className="text-sm text-muted-foreground text-center py-3">
+                    Carga el resultado con equipo ganador para habilitar MVP.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {mvpCandidates
+                      .filter((p: any) => p.id !== voterId)
+                      .map((p: any) => (
+                        <button
+                          key={p.id}
+                          onClick={() => setMvpVote(p.id)}
+                          className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-smooth ${
+                            mvpVote === p.id
+                              ? "border-mvp bg-mvp/15 shadow-glow"
+                              : "border-border/40 bg-card/50 hover:border-mvp/40"
+                          }`}
+                        >
+                          <PlayerAvatar nombre={p.nombre} foto_url={p.foto_url} size="md" />
+                          <p className="font-bold text-xs text-center truncate w-full">
+                            {p.apodo ?? p.nombre}
+                          </p>
+                          {mvpVote === p.id && <Check className="h-3 w-3 text-mvp" />}
+                        </button>
+                      ))}
+                  </div>
+                )}
               </div>
 
               {/* GOL */}
@@ -251,30 +277,29 @@ const Votacion = () => {
                   <h3 className="font-black">Gol de la fecha</h3>
                 </div>
                 <p className="text-xs text-muted-foreground mb-3">
-                  Solo entre quienes metieron al menos un gol.
+                  Cualquier jugador oficial presente puede ser votado.
                 </p>
-                {goleadores.length === 0 ? (
+                {votablesPresentes.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-3">
-                    Aún no se cargaron goles en este partido.
+                    No hay jugadores oficiales presentes.
                   </p>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {goleadores.map((r: any) => (
+                    {votablesPresentes.map((p: any) => (
                       <button
-                        key={r.player.id}
-                        onClick={() => setGoalVote(r.player.id)}
+                        key={p.id}
+                        onClick={() => setGoalVote(p.id)}
                         className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-smooth ${
-                          goalVote === r.player.id
+                          goalVote === p.id
                             ? "border-stats bg-stats/15 shadow-glow"
                             : "border-border/40 bg-card/50 hover:border-stats/40"
                         }`}
                       >
-                        <PlayerAvatar nombre={r.player.nombre} foto_url={r.player.foto_url} size="md" />
+                        <PlayerAvatar nombre={p.nombre} foto_url={p.foto_url} size="md" />
                         <p className="font-bold text-xs text-center truncate w-full">
-                          {r.player.apodo ?? r.player.nombre}
+                          {p.apodo ?? p.nombre}
                         </p>
-                        <p className="text-[10px] text-muted-foreground">{r.goles} ⚽</p>
-                        {goalVote === r.player.id && <Check className="h-3 w-3 text-stats" />}
+                        {goalVote === p.id && <Check className="h-3 w-3 text-stats" />}
                       </button>
                     ))}
                   </div>

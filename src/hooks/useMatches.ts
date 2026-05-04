@@ -258,9 +258,9 @@ export const useCloseMatchVoting = () => {
         supabase.from("votes").select("*").eq("match_id", matchId),
         supabase
           .from("match_players")
-          .select("player_id, goles, asistencias, presente, player:players(tipo)")
+          .select("player_id, equipo, goles, asistencias, presente, player:players(tipo)")
           .eq("match_id", matchId),
-        supabase.from("matches").select("id").eq("id", matchId).single(),
+        supabase.from("matches").select("id, equipo_a_score, equipo_b_score").eq("id", matchId).single(),
       ]);
       if (votesRes.error) throw votesRes.error;
       if (mpRes.error) throw mpRes.error;
@@ -268,19 +268,27 @@ export const useCloseMatchVoting = () => {
 
       const votes = votesRes.data ?? [];
       const mp = (mpRes.data ?? []) as any[];
+      const match = matchRes.data as any;
+      const scoreA = Number(match.equipo_a_score ?? 0);
+      const scoreB = Number(match.equipo_b_score ?? 0);
+      const winnerTeam = scoreA > scoreB ? "A" : scoreB > scoreA ? "B" : null;
 
       const eligiblePlayerIds = new Set<string>();
+      const mvpEligiblePlayerIds = new Set<string>();
       const stats = new Map<string, { goles: number; asistencias: number }>();
       mp.forEach((r) => {
         if (!r.presente || (r as any).player?.tipo === "invitado") return;
         eligiblePlayerIds.add(r.player_id);
+        if (winnerTeam && r.equipo === winnerTeam) {
+          mvpEligiblePlayerIds.add(r.player_id);
+        }
         stats.set(r.player_id, { goles: r.goles, asistencias: r.asistencias });
       });
 
-      const pickWinner = (type: "mvp" | "goal"): string | null => {
+      const pickWinner = (type: "mvp" | "goal", eligibleIds: Set<string>): string | null => {
         const tally = new Map<string, number>();
         votes
-          .filter((v) => v.type === type && eligiblePlayerIds.has(v.voted_player_id))
+          .filter((v) => v.type === type && eligibleIds.has(v.voted_player_id))
           .forEach((v) => {
             tally.set(v.voted_player_id, (tally.get(v.voted_player_id) ?? 0) + 1);
           });
@@ -295,8 +303,8 @@ export const useCloseMatchVoting = () => {
           .sort((a, b) => b.count - a.count || b.goles - a.goles || b.asist - a.asist);
         return ranked[0].pid;
       };
-      const mvp = pickWinner("mvp");
-      const gol = pickWinner("goal");
+      const mvp = pickWinner("mvp", mvpEligiblePlayerIds);
+      const gol = pickWinner("goal", eligiblePlayerIds);
 
       const { data, error } = await supabase
         .from("matches")
