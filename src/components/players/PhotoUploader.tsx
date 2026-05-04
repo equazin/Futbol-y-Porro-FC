@@ -13,6 +13,7 @@ interface Props {
 
 const MAX_DIMENSION = 800; // px máx en cualquier lado
 const QUALITY = 0.82;
+const PHOTO_BUCKET = "player-photos";
 
 const compressImage = (file: File): Promise<Blob> =>
   new Promise((resolve, reject) => {
@@ -37,6 +38,30 @@ const compressImage = (file: File): Promise<Blob> =>
     img.src = url;
   });
 
+const blobToDataUrl = (blob: Blob): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("No se pudo preparar la imagen"));
+    reader.readAsDataURL(blob);
+  });
+
+const getErrorField = (error: unknown, field: "message" | "error" | "statusCode" | "status") => {
+  if (!error || typeof error !== "object" || !(field in error)) return "";
+  return String((error as Record<string, unknown>)[field] ?? "");
+};
+
+const isMissingBucketError = (error: unknown) => {
+  const message = `${getErrorField(error, "message")} ${getErrorField(error, "error")}`.toLowerCase();
+  const status = getErrorField(error, "statusCode") || getErrorField(error, "status");
+  return status === "404" || (message.includes("bucket") && message.includes("not found"));
+};
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  const message = getErrorField(error, "message");
+  return message || fallback;
+};
+
 export const PhotoUploader = ({ nombre, currentUrl, onChange }: Props) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -50,17 +75,23 @@ export const PhotoUploader = ({ nombre, currentUrl, onChange }: Props) => {
       setUploading(true);
       const compressed = await compressImage(file);
       const path = `${crypto.randomUUID()}.jpg`;
-      const { error } = await supabase.storage.from("player-photos").upload(path, compressed, {
+      const { error } = await supabase.storage.from(PHOTO_BUCKET).upload(path, compressed, {
         cacheControl: "3600",
         upsert: false,
         contentType: "image/jpeg",
       });
-      if (error) throw error;
-      const { data } = supabase.storage.from("player-photos").getPublicUrl(path);
+      if (error) {
+        if (!isMissingBucketError(error)) throw error;
+        const dataUrl = await blobToDataUrl(compressed);
+        onChange(dataUrl);
+        toast.success("Foto cargada");
+        return;
+      }
+      const { data } = supabase.storage.from(PHOTO_BUCKET).getPublicUrl(path);
       onChange(data.publicUrl);
       toast.success("Foto cargada");
-    } catch (e: any) {
-      toast.error(e.message ?? "Error subiendo la foto");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e, "Error subiendo la foto"));
     } finally {
       setUploading(false);
     }

@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import {
+  useApplyMatchElo,
   useCloseMatchVoting,
   useMatch,
   useMatchPlayers,
@@ -56,6 +57,9 @@ const voteWindowFor = (fechaIso: string, estado: string) =>
       }
     : {};
 
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback;
+
 const MatchStats = () => {
   const { id } = useParams<{ id: string }>();
   const { data: match, isLoading: loadingM } = useMatch(id);
@@ -66,6 +70,7 @@ const MatchStats = () => {
   const saveMut = useSaveMatchPlayers();
   const updateMut = useUpdateMatch();
   const closeMut = useCloseMatchVoting();
+  const applyEloMut = useApplyMatchElo();
 
   const [rows, setRows] = useState<Record<string, Row>>({});
   const [scoreA, setScoreA] = useState(0);
@@ -75,6 +80,7 @@ const MatchStats = () => {
   const [mvpId, setMvpId] = useState<string>("none");
   const [golFechaId, setGolFechaId] = useState<string>("none");
   const [confirmClose, setConfirmClose] = useState(false);
+  const [confirmEloRetry, setConfirmEloRetry] = useState(false);
 
   useEffect(() => {
     if (!existingMP.length) return;
@@ -127,6 +133,28 @@ const MatchStats = () => {
 
   const updateRow = (playerId: string, patch: Partial<Row>) =>
     setRows((prev) => ({ ...prev, [playerId]: { ...prev[playerId], ...patch } }));
+
+  const eloSkipMessage = (reason?: string) => {
+    if (reason === "already_applied") return "El ELO ya estaba aplicado.";
+    if (reason === "pending") return "Primero marca el partido como jugado.";
+    if (reason === "missing_teams") return "Faltan jugadores presentes en ambos equipos.";
+    return "No se pudo aplicar el ELO.";
+  };
+
+  const onApplyElo = async (force = false) => {
+    if (!id) return;
+    try {
+      const result = await applyEloMut.mutateAsync({ matchId: id, force });
+      if (result.applied) {
+        toast.success(`ELO actualizado (${result.eloUpdates.length} jugadores)`);
+      } else {
+        toast.info(eloSkipMessage(result.skippedReason));
+      }
+      setConfirmEloRetry(false);
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e, "No se pudo aplicar el ELO."));
+    }
+  };
 
   const onSaveStats = async () => {
     if (!id) return;
@@ -359,12 +387,26 @@ const MatchStats = () => {
               )}
             </div>
           </div>
-          <Button asChild variant="ghost">
-            <Link to="/admin/partidos">
-              <ArrowLeft className="h-4 w-4 mr-1.5" />
-              Volver
-            </Link>
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            {!eloApplied && estado !== "pendiente" && (
+              <Button type="button" variant="outline" onClick={() => onApplyElo()} disabled={applyEloMut.isPending}>
+                <Sparkles className="h-4 w-4 mr-1.5" />
+                {applyEloMut.isPending ? "Aplicando..." : "Aplicar ELO"}
+              </Button>
+            )}
+            {eloApplied && estado !== "pendiente" && (
+              <Button type="button" variant="outline" onClick={() => setConfirmEloRetry(true)} disabled={applyEloMut.isPending}>
+                <Sparkles className="h-4 w-4 mr-1.5" />
+                {applyEloMut.isPending ? "Aplicando..." : "Reintentar ELO"}
+              </Button>
+            )}
+            <Button asChild variant="ghost">
+              <Link to="/admin/partidos">
+                <ArrowLeft className="h-4 w-4 mr-1.5" />
+                Volver
+              </Link>
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -578,6 +620,23 @@ const MatchStats = () => {
         </AlertDialogContent>
       </AlertDialog>
       )}
+
+      <AlertDialog open={confirmEloRetry} onOpenChange={setConfirmEloRetry}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reintentar ELO?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Este partido ya figura como ELO aplicado. Usalo solo si los jugadores no cambiaron su ELO; si ya se habia aplicado bien, se sumara otra vez.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => onApplyElo(true)} className="bg-primary text-primary-foreground hover:bg-primary/90">
+              Reintentar ELO
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

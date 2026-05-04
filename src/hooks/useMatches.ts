@@ -125,7 +125,10 @@ export interface EloUpdateResult {
   eloUpdates: { id: string; elo: number }[];
 }
 
-export const applyMatchEloIfNeeded = async (matchId: string): Promise<EloUpdateResult> => {
+export const applyMatchEloIfNeeded = async (
+  matchId: string,
+  options: { force?: boolean } = {},
+): Promise<EloUpdateResult> => {
   const [matchRes, mpRes] = await Promise.all([
     (supabase as any)
       .from("matches")
@@ -145,7 +148,7 @@ export const applyMatchEloIfNeeded = async (matchId: string): Promise<EloUpdateR
   if (!match || match.estado === "pendiente") {
     return { applied: false, skippedReason: "pending", eloUpdates: [] };
   }
-  if (match.elo_applied === true) {
+  if (match.elo_applied === true && !options.force) {
     return { applied: false, skippedReason: "already_applied", eloUpdates: [] };
   }
 
@@ -189,6 +192,21 @@ export const applyMatchEloIfNeeded = async (matchId: string): Promise<EloUpdateR
   if (markErr) throw markErr;
 
   return { applied: true, eloUpdates };
+};
+
+export const useApplyMatchElo = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ matchId, force = false }: { matchId: string; force?: boolean }) =>
+      applyMatchEloIfNeeded(matchId, { force }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["matches"] });
+      qc.invalidateQueries({ queryKey: ["match", vars.matchId] });
+      qc.invalidateQueries({ queryKey: ["rankings"] });
+      qc.invalidateQueries({ queryKey: ["players"] });
+      qc.invalidateQueries({ queryKey: ["chemistry"] });
+    },
+  });
 };
 
 export const useSaveMatchPlayers = () => {
