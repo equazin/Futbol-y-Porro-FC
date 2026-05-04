@@ -25,11 +25,14 @@ import Finanzas from "./pages/admin/Finanzas";
 import FinePresets from "./pages/admin/FinePresets";
 import Venues from "./pages/admin/Venues";
 import NotFound from "./pages/NotFound";
+import { useAutoCloseExpiredVoting } from "@/hooks/useMatches";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
+const AppShell = () => {
+  useAutoCloseExpiredVoting();
+
+  return (
     <TooltipProvider>
       <AdminAuthProvider>
         <Toaster />
@@ -72,6 +75,12 @@ const App = () => (
         </HashRouter>
       </AdminAuthProvider>
     </TooltipProvider>
+  );
+};
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <AppShell />
   </QueryClientProvider>
 );
 

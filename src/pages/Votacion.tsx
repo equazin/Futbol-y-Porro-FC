@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
-import { useMatches, useMatchPlayers } from "@/hooks/useMatches";
+import { getVotingDeadline, isVotingOpenForMatch, useMatches, useMatchPlayers } from "@/hooks/useMatches";
 import { usePlayers } from "@/hooks/usePlayers";
 import { useVotes, useHasVoted, useCastVotes, tallyVotes } from "@/hooks/useVotes";
 
@@ -14,11 +14,17 @@ type Step = "match" | "identify" | "vote" | "done";
 const Votacion = () => {
   const { data: matches = [] } = useMatches();
   const { data: players = [] } = usePlayers();
+  const [now, setNow] = useState(Date.now());
 
-  // Solo partidos oficiales votables: no cerrados (pendiente o jugado)
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  // Solo partidos oficiales jugados dentro de las 48 horas posteriores.
   const votables = useMemo(
-    () => matches.filter((m) => m.estado !== "cerrado" && !(m as any).is_friendly),
-    [matches]
+    () => matches.filter((m) => isVotingOpenForMatch(m, now)),
+    [matches, now]
   );
 
   const [step, setStep] = useState<Step>("match");
@@ -130,7 +136,7 @@ const Votacion = () => {
             <EmptyState
               icon={Vote}
               title="No hay partidos para votar"
-              description="Cuando haya un partido pendiente o jugado, aparecerá acá."
+              description="La votacion abre cuando el partido se marca como jugado y dura 48 horas."
             />
           ) : (
             <div className="space-y-3">
@@ -153,6 +159,9 @@ const Votacion = () => {
                       </p>
                       <p className="text-xs text-muted-foreground uppercase tracking-wider mt-1">
                         {m.estado} · {fmtHora(m.fecha)} hs
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Vota hasta {fmtPartidoSinHora(new Date(getVotingDeadline(m)).toISOString())} · {fmtHora(new Date(getVotingDeadline(m)).toISOString())} hs
                       </p>
                     </div>
                     {m.estado === "jugado" && (

@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
@@ -7,6 +8,23 @@ import { avgElo, expectedScore, newElo, teamResult, ELO_INICIAL } from "@/lib/el
 export type Match = Database["public"]["Tables"]["matches"]["Row"];
 export type MatchInsert = Database["public"]["Tables"]["matches"]["Insert"];
 export type MatchPlayer = Database["public"]["Tables"]["match_players"]["Row"];
+
+export const VOTING_WINDOW_MS = 48 * 60 * 60 * 1000;
+
+export const getVotingDeadline = (match: Pick<Match, "fecha">) =>
+  new Date(match.fecha).getTime() + VOTING_WINDOW_MS;
+
+export const isVotingOpenForMatch = (match: Match, now = Date.now()) => {
+  const matchTime = new Date(match.fecha).getTime();
+  if (Number.isNaN(matchTime)) return false;
+  return match.estado === "jugado" && !(match as any).is_friendly && now >= matchTime && now < matchTime + VOTING_WINDOW_MS;
+};
+
+export const isVotingExpiredForMatch = (match: Match, now = Date.now()) => {
+  const matchTime = new Date(match.fecha).getTime();
+  if (Number.isNaN(matchTime)) return false;
+  return match.estado === "jugado" && !(match as any).is_friendly && now >= matchTime + VOTING_WINDOW_MS;
+};
 
 export const useMatches = () =>
   useQuery({
@@ -333,4 +351,40 @@ export const useCloseMatchVoting = () => {
       qc.invalidateQueries({ queryKey: ["chemistry"] });
     },
   });
+};
+
+export const useAutoCloseExpiredVoting = () => {
+  const { data: matches = [] } = useMatches();
+  const closeMut = useCloseMatchVoting();
+  const closingIds = useRef(new Set<string>());
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const expired = matches.filter((match) => isVotingExpiredForMatch(match, now) && !closingIds.current.has(match.id));
+    if (expired.length === 0) return;
+
+    let cancelled = false;
+    const closeExpired = async () => {
+      for (const match of expired) {
+        if (cancelled) return;
+        closingIds.current.add(match.id);
+        try {
+          await closeMut.mutateAsync(match.id);
+        } catch (error) {
+          closingIds.current.delete(match.id);
+          console.error("No se pudo cerrar la votacion vencida", error);
+        }
+      }
+    };
+
+    void closeExpired();
+    return () => {
+      cancelled = true;
+    };
+  }, [matches, now, closeMut]);
 };
