@@ -226,12 +226,22 @@ export const useSaveMatchPlayers = () => {
       const { error: delErr } = await supabase.from("match_players").delete().eq("match_id", matchId);
       if (delErr) throw delErr;
 
+      const { data: existingContribs, error: existingContribsErr } = await supabase
+        .from("contributions")
+        .select("player_id, pagado")
+        .eq("match_id", matchId);
+      if (existingContribsErr) throw existingContribsErr;
+      const paidByPlayer = new Map(
+        (existingContribs ?? []).map((row) => [row.player_id, Boolean(row.pagado)])
+      );
+
+      const { error: delContribsErr } = await supabase.from("contributions").delete().eq("match_id", matchId);
+      if (delContribsErr) throw delContribsErr;
+
       if (players.length > 0) {
         const rows = players.map((p) => ({ match_id: matchId, ...p }));
         const { error: insErr } = await supabase.from("match_players").insert(rows);
         if (insErr) throw insErr;
-
-        await supabase.from("contributions").delete().eq("match_id", matchId);
 
         // Fetch player types to exclude guests from contributions
         const ids = players.map((p) => p.player_id);
@@ -249,6 +259,7 @@ export const useSaveMatchPlayers = () => {
             match_id: matchId,
             player_id: p.player_id,
             monto: aporte,
+            pagado: paidByPlayer.get(p.player_id) ?? false,
           }));
         if (contribs.length > 0) {
           const { error: cErr } = await supabase.from("contributions").insert(contribs);

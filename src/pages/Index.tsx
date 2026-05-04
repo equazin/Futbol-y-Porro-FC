@@ -58,7 +58,7 @@ const Index = () => {
   const { data: matches = [] } = useMatches();
   const { data: ranking = [] } = useRanking();
   const { data: players = [] } = usePlayers();
-  const { data: fondo } = useFondo();
+  const { data: fondo, isLoading: loadingFondo } = useFondo();
 
   const ultimoPartido = useMemo(() => matches.find((m) => m.estado !== "pendiente"), [matches]);
   const partidosOficiales = useMemo(() => matches.filter((m) => !(m as any).is_friendly), [matches]);
@@ -260,10 +260,10 @@ const Index = () => {
         <StatCard label="Partidos" value={matches.length} icon={Calendar} variant="stats" />
         <StatCard
           label="Fondo comun"
-          value={formatARS(fondo?.total ?? 0)}
+          value={loadingFondo ? "..." : formatARS(fondo?.caja ?? 0)}
           icon={Wallet}
           variant="mvp"
-          hint={fondo ? `${formatARS(fondo.pendiente)} por cobrar` : undefined}
+          hint={fondo ? `Caja disponible · ${formatARS(fondo.pendiente + fondo.multasPendientes)} por cobrar` : undefined}
         />
         <StatCard label="MVPs entregados" value={mvpsEntregadosCount} icon={Star} />
       </section>

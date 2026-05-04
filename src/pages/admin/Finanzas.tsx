@@ -11,7 +11,7 @@ const Finanzas = () => {
   if (isLoading) return <p className="text-muted-foreground">Cargando...</p>;
   if (!fondo) return <EmptyState icon={Wallet} title="Sin datos financieros" description="Cargá partidos y registrá aportes para ver el resumen." />;
 
-  const { total, cobrado, pendiente, multasTotal, multasCobradas, multasPendientes, caja } = fondo;
+  const { total, cobrado, pendiente, multasTotal, multasCobradas, multasPendientes, caja, manualSaldo } = fondo;
   const progreso = total > 0 ? Math.round((cobrado / total) * 100) : 0;
   const premiosTotal = FONDO.PREMIO_1 + FONDO.PREMIO_2;
   const superavit = caja - premiosTotal;
@@ -34,7 +34,7 @@ const Finanzas = () => {
               <Banknote className="h-3.5 w-3.5" /> Caja disponible
             </p>
             <p className="text-3xl font-black text-mvp">{formatARS(caja)}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Aportes + multas cobradas</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Aportes + multas + ajustes</p>
           </div>
         </div>
       </header>
@@ -111,6 +111,7 @@ const Finanzas = () => {
           { label: "Total multas emitidas", value: multasTotal, color: "text-foreground" },
           { label: "Multas cobradas", value: multasCobradas, color: "text-primary" },
           { label: "Multas pendientes", value: -multasPendientes, color: "text-destructive" },
+          { label: "Ajustes manuales", value: manualSaldo, color: manualSaldo >= 0 ? "text-primary" : "text-destructive" },
         ].map(({ label, value, color }) => (
           <div key={label} className="flex justify-between items-center py-1.5 border-b border-border/20 last:border-0 text-sm">
             <span className="text-muted-foreground">{label}</span>

@@ -22,6 +22,7 @@ import {
   useApplyMatchElo,
   useCloseMatchVoting,
   useMatch,
+  useMatchContributionAmount,
   useMatchPlayers,
   useSaveMatchPlayers,
   useUpdateMatch,
@@ -29,7 +30,7 @@ import {
 } from "@/hooks/useMatches";
 import { usePlayers } from "@/hooks/usePlayers";
 import { useVotes, tallyVotes } from "@/hooks/useVotes";
-import { FONDO, CALIFICACION_CRITERIOS } from "@/lib/scoring";
+import { FONDO, CALIFICACION_CRITERIOS, formatARS } from "@/lib/scoring";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Row {
@@ -65,6 +66,7 @@ const MatchStats = () => {
   const { data: match, isLoading: loadingM } = useMatch(id);
   const { data: players = [] } = usePlayers();
   const { data: existingMP = [], isLoading: loadingMP } = useMatchPlayers(id);
+  const { data: existingAporte } = useMatchContributionAmount(id);
   const { data: votes = [] } = useVotes(id);
 
   const saveMut = useSaveMatchPlayers();
@@ -79,6 +81,7 @@ const MatchStats = () => {
   const [estado, setEstado] = useState<string>("pendiente");
   const [mvpId, setMvpId] = useState<string>("none");
   const [golFechaId, setGolFechaId] = useState<string>("none");
+  const [aportePorJugador, setAportePorJugador] = useState<number>(FONDO.APORTE_POR_PARTIDO);
   const [confirmClose, setConfirmClose] = useState(false);
   const [confirmEloRetry, setConfirmEloRetry] = useState(false);
 
@@ -107,6 +110,14 @@ const MatchStats = () => {
     setMvpId(match.mvp_player_id ?? "none");
     setGolFechaId(match.gol_de_la_fecha_player_id ?? "none");
   }, [match]);
+
+  useEffect(() => {
+    if (typeof existingAporte === "number" && existingAporte > 0) {
+      setAportePorJugador(existingAporte);
+      return;
+    }
+    setAportePorJugador(FONDO.APORTE_POR_PARTIDO);
+  }, [existingAporte]);
 
   const teamA = useMemo(() => Object.values(rows).filter((r) => r.presente && r.equipo === "A"), [rows]);
   const teamB = useMemo(() => Object.values(rows).filter((r) => r.presente && r.equipo === "B"), [rows]);
@@ -180,7 +191,7 @@ const MatchStats = () => {
       await saveMut.mutateAsync({
         matchId: id,
         players: payload,
-        aportePorJugador: FONDO.APORTE_POR_PARTIDO,
+        aportePorJugador,
       });
       // Transición automática pendiente → jugado al cargar stats
       if ((estado === "pendiente" || (!eloApplied && hasScoreForElo)) && payload.length > 0) {
@@ -414,6 +425,35 @@ const MatchStats = () => {
         <TeamCard teamKey="A" title="Equipo A" playersRows={teamA} accentClass="bg-primary/10 text-primary" />
         <TeamCard teamKey="B" title="Equipo B" playersRows={teamB} accentClass="bg-stats/10 text-stats" />
       </div>
+
+      <section className="rounded-2xl border border-mvp/30 bg-gradient-card p-4">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(220px,280px)] md:items-end">
+          <div className="space-y-1">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-mvp font-bold">Fondo comun</p>
+            <h2 className="font-black">Aporte / extra del domingo</h2>
+            <p className="text-xs text-muted-foreground">
+              Este monto se guarda por cada jugador presente y despues alimenta la caja del fondo.
+            </p>
+          </div>
+          <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+            <div className="space-y-2">
+              <Label>Aporte por jugador</Label>
+              <Input
+                type="number"
+                min={0}
+                step={100}
+                value={aportePorJugador}
+                onChange={(e) => setAportePorJugador(Math.max(0, Number(e.target.value) || 0))}
+                className="h-12 text-lg font-black"
+              />
+            </div>
+            <div className="rounded-lg border border-mvp/30 bg-mvp/10 px-3 py-2 min-w-[132px]">
+              <p className="text-[10px] uppercase font-bold text-mvp">Total fecha</p>
+              <p className="font-black">{formatARS(presentes.length * aportePorJugador)}</p>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <Button onClick={onSaveStats} disabled={saveMut.isPending} className="w-full shadow-glow" size="lg">
         <Save className="h-4 w-4 mr-2" />

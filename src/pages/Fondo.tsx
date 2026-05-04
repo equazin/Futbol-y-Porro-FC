@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Wallet, TrendingUp, AlertCircle, CheckCircle2, Users, CalendarClock, Banknote, Plus, Trash2, ArrowDownCircle, ArrowUpCircle } from "lucide-react";
+import { Wallet, TrendingUp, AlertCircle, CheckCircle2, Users, CalendarClock, Banknote, Plus, Trash2, ArrowDownCircle, ArrowUpCircle, Pencil } from "lucide-react";
 import { fmtPartidoConAño } from "@/lib/dates";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -64,6 +64,9 @@ const Fondo = ({ readOnly = false }: { readOnly?: boolean }) => {
   const [movementMonto, setMovementMonto] = useState("");
   const [movementMotivo, setMovementMotivo] = useState("");
   const [movementFecha, setMovementFecha] = useState(() => new Date().toISOString().slice(0, 10));
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [adjustTarget, setAdjustTarget] = useState("");
+  const [adjustMotivo, setAdjustMotivo] = useState("Ajuste manual de caja");
   const { data: fondoGlobal } = useFondo();
 
   const { data: contribs = [], isLoading } = useQuery({
@@ -130,6 +133,41 @@ const Fondo = ({ readOnly = false }: { readOnly?: boolean }) => {
       setMovementMonto("");
       setMovementMotivo("");
       setMovementFecha(new Date().toISOString().slice(0, 10));
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const openAdjustDialog = () => {
+    setAdjustTarget(String(Math.round(fondoGlobal?.caja ?? 0)));
+    setAdjustMotivo("Ajuste manual de caja");
+    setAdjustOpen(true);
+  };
+
+  const adjustCash = useMutation({
+    mutationFn: async () => {
+      const current = Math.round(Number(fondoGlobal?.caja ?? 0));
+      const target = Math.round(Number(adjustTarget));
+      if (!Number.isFinite(target) || target < 0) throw new Error("Ingresa un monto valido");
+
+      const delta = target - current;
+      if (delta === 0) throw new Error("La caja ya tiene ese monto");
+
+      const motivo = adjustMotivo.trim() || `Ajuste manual de caja a ${formatARS(target)}`;
+      const { error } = await (supabase as any).from("fund_movements").insert({
+        tipo: delta > 0 ? "ingreso" : "egreso",
+        monto: Math.abs(delta),
+        motivo,
+        fecha: new Date().toISOString(),
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["fund_movements"] });
+      qc.invalidateQueries({ queryKey: ["fondo"] });
+      toast.success("Caja ajustada");
+      setAdjustOpen(false);
+      setAdjustTarget("");
+      setAdjustMotivo("Ajuste manual de caja");
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -274,10 +312,16 @@ const Fondo = ({ readOnly = false }: { readOnly?: boolean }) => {
             </p>
           </div>
           {!readOnly && (
-            <Button onClick={() => setMovementOpen(true)} size="sm" className="shrink-0">
-              <Plus className="h-4 w-4 mr-1.5" />
-              Nuevo movimiento
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+              <Button onClick={openAdjustDialog} size="sm" variant="outline" disabled={fondoGlobal === undefined}>
+                <Pencil className="h-4 w-4 mr-1.5" />
+                Ajustar caja visible
+              </Button>
+              <Button onClick={() => setMovementOpen(true)} size="sm">
+                <Plus className="h-4 w-4 mr-1.5" />
+                Nuevo movimiento
+              </Button>
+            </div>
           )}
         </div>
 
@@ -456,6 +500,54 @@ const Fondo = ({ readOnly = false }: { readOnly?: boolean }) => {
               </Button>
               <Button onClick={() => createMovement.mutate()} disabled={createMovement.isPending}>
                 Registrar movimiento
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {!readOnly && (
+        <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Ajustar caja visible</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="rounded-lg border border-mvp/30 bg-mvp/10 px-3 py-2">
+                <p className="text-[10px] uppercase font-bold text-mvp">Caja actual</p>
+                <p className="text-xl font-black">{formatARS(fondoGlobal?.caja ?? 0)}</p>
+                <p className="text-xs text-muted-foreground">
+                  Se guardara un ingreso o egreso por la diferencia para que el fondo quede en el monto elegido.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Monto que debe aparecer</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={100}
+                  value={adjustTarget}
+                  onChange={(e) => setAdjustTarget(e.target.value)}
+                  placeholder="Ej: 24800"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Motivo</Label>
+                <Input
+                  value={adjustMotivo}
+                  onChange={(e) => setAdjustMotivo(e.target.value)}
+                  placeholder="Ej: Ajuste por error de caja"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setAdjustOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={() => adjustCash.mutate()} disabled={adjustCash.isPending}>
+                Guardar ajuste
               </Button>
             </DialogFooter>
           </DialogContent>
