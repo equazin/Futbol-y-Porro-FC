@@ -43,7 +43,7 @@ export const useMatchPlayers = (matchId?: string) =>
     queryFn: async () => {
       const { data, error } = await supabase
         .from("match_players")
-        .select("*, player:players(id, nombre, apodo, foto_url, posicion)")
+        .select("*, player:players(id, nombre, apodo, foto_url, posicion, tipo)")
         .eq("match_id", matchId!);
       if (error) throw error;
       return data;
@@ -258,7 +258,7 @@ export const useCloseMatchVoting = () => {
         supabase.from("votes").select("*").eq("match_id", matchId),
         supabase
           .from("match_players")
-          .select("player_id, goles, asistencias, presente")
+          .select("player_id, goles, asistencias, presente, player:players(tipo)")
           .eq("match_id", matchId),
         supabase.from("matches").select("id").eq("id", matchId).single(),
       ]);
@@ -269,15 +269,18 @@ export const useCloseMatchVoting = () => {
       const votes = votesRes.data ?? [];
       const mp = (mpRes.data ?? []) as any[];
 
+      const eligiblePlayerIds = new Set<string>();
       const stats = new Map<string, { goles: number; asistencias: number }>();
       mp.forEach((r) => {
-        if (r.presente) stats.set(r.player_id, { goles: r.goles, asistencias: r.asistencias });
+        if (!r.presente || (r as any).player?.tipo === "invitado") return;
+        eligiblePlayerIds.add(r.player_id);
+        stats.set(r.player_id, { goles: r.goles, asistencias: r.asistencias });
       });
 
       const pickWinner = (type: "mvp" | "goal"): string | null => {
         const tally = new Map<string, number>();
         votes
-          .filter((v) => v.type === type)
+          .filter((v) => v.type === type && eligiblePlayerIds.has(v.voted_player_id))
           .forEach((v) => {
             tally.set(v.voted_player_id, (tally.get(v.voted_player_id) ?? 0) + 1);
           });

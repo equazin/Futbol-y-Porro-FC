@@ -36,8 +36,16 @@ const Votacion = () => {
     () => mp.filter((r: any) => r.presente).map((r: any) => r.player),
     [mp]
   );
+  const votablesPresentes = useMemo(
+    () => presentes.filter((p: any) => p?.tipo !== "invitado"),
+    [presentes]
+  );
+  const votablePlayerIds = useMemo(
+    () => new Set(votablesPresentes.map((p: any) => p.id)),
+    [votablesPresentes]
+  );
   const goleadores = useMemo(
-    () => mp.filter((r: any) => r.presente && r.goles > 0),
+    () => mp.filter((r: any) => r.presente && r.goles > 0 && r.player?.tipo !== "invitado"),
     [mp]
   );
 
@@ -56,6 +64,10 @@ const Votacion = () => {
 
   const onSubmit = async () => {
     if (!matchId || !voterId || !mvpVote || !goalVote) return;
+    if (!votablePlayerIds.has(voterId) || !votablePlayerIds.has(mvpVote) || !votablePlayerIds.has(goalVote)) {
+      toast.error("Los jugadores invitados no participan en la votacion de MVP ni Gol de la fecha.");
+      return;
+    }
     try {
       await castMut.mutateAsync({ matchId, voterId, mvpVotedId: mvpVote, goalVotedId: goalVote });
       toast.success("¡Votos registrados!");
@@ -68,11 +80,15 @@ const Votacion = () => {
   const selectedMatch = matches.find((m) => m.id === matchId);
 
   // Resultados en vivo
-  const mvpTally = useMemo(() => tallyVotes(votes, "mvp"), [votes]);
-  const goalTally = useMemo(() => tallyVotes(votes, "goal"), [votes]);
+  const eligibleVotes = useMemo(
+    () => votes.filter((vote) => votablePlayerIds.has(vote.voted_player_id)),
+    [votes, votablePlayerIds]
+  );
+  const mvpTally = useMemo(() => tallyVotes(eligibleVotes, "mvp"), [eligibleVotes]);
+  const goalTally = useMemo(() => tallyVotes(eligibleVotes, "goal"), [eligibleVotes]);
   const totalVoters = useMemo(
-    () => new Set(votes.map((v) => v.voter_player_id)).size,
-    [votes]
+    () => new Set(eligibleVotes.map((v) => v.voter_player_id)).size,
+    [eligibleVotes]
   );
 
   const playerById = (id: string) => players.find((p) => p.id === id);
@@ -151,15 +167,15 @@ const Votacion = () => {
           <p className="text-xs uppercase tracking-wider text-muted-foreground font-bold">
             ¿Quién sos?
           </p>
-          {presentes.length === 0 ? (
+          {votablesPresentes.length === 0 ? (
             <EmptyState
               icon={Vote}
-              title="Aún no hay planteles cargados"
-              description="Pedile al admin que cargue quiénes jugaron antes de votar."
+              title="No hay jugadores habilitados para votar"
+              description="Los invitados no participan en la votacion de MVP ni Gol de la fecha."
             />
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {presentes.map((p: any) => (
+              {votablesPresentes.map((p: any) => (
                 <button
                   key={p.id}
                   onClick={() => {
@@ -206,7 +222,7 @@ const Votacion = () => {
                   Elegí al mejor jugador (no podés votarte a vos mismo).
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {presentes
+                  {votablesPresentes
                     .filter((p: any) => p.id !== voterId)
                     .map((p: any) => (
                       <button
