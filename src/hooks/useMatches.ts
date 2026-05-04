@@ -240,7 +240,11 @@ export const useUpdateMatch = () => {
       }
       return data;
     },
-    onSuccess: (_, vars) => {
+    onSuccess: (data, vars) => {
+      qc.setQueryData(["match", vars.id], data);
+      qc.setQueryData(["matches"], (old: Match[] | undefined) =>
+        old?.map((match) => (match.id === vars.id ? { ...match, ...data } : match))
+      );
       qc.invalidateQueries({ queryKey: ["matches"] });
       qc.invalidateQueries({ queryKey: ["match", vars.id] });
       qc.invalidateQueries({ queryKey: ["rankings"] });

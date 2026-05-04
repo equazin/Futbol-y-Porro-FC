@@ -176,6 +176,27 @@ const MatchStats = () => {
     }
   };
 
+  const onSaveDate = async () => {
+    if (!id) return;
+    if (!fecha) {
+      toast.error("La fecha y hora del partido es obligatoria.");
+      return;
+    }
+    try {
+      await updateMut.mutateAsync({
+        id,
+        fecha: new Date(fecha).toISOString(),
+      } as any);
+      toast.success("Fecha actualizada");
+    } catch (e: any) {
+      if (e?.code === "23505" && e?.message?.includes("matches_fecha_key")) {
+        toast.error("Ya existe un partido con esa fecha y hora.");
+        return;
+      }
+      toast.error(e.message ?? "No se pudo guardar la fecha.");
+    }
+  };
+
   const onCloseVoting = async () => {
     if (!id) return;
     try {
@@ -192,6 +213,8 @@ const MatchStats = () => {
   if (loadingM || loadingMP || !match) {
     return <p className="text-muted-foreground">Cargando partido...</p>;
   }
+
+  const headerFecha = fecha ? new Date(fecha).toISOString() : match.fecha;
 
   const TeamCard = ({
     teamKey,
@@ -284,7 +307,7 @@ const MatchStats = () => {
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-primary font-bold">Carga de stats</p>
             <h1 className="text-xl md:text-2xl font-black capitalize">
-              {fmtPartidoLargo(match.fecha)}
+              {fmtPartidoLargo(headerFecha)}
             </h1>
             <p className="text-sm text-muted-foreground">
               Equipos definidos: {teamA.length} vs {teamB.length} · Carga rapida de goles, asistencias y calificacion.
@@ -326,12 +349,18 @@ const MatchStats = () => {
         <div className="grid md:grid-cols-3 gap-3">
           <div className="space-y-2 md:col-span-3">
             <Label>Fecha y hora</Label>
-            <Input
-              type="datetime-local"
-              value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
-              className="h-12 font-bold"
-            />
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Input
+                type="datetime-local"
+                value={fecha}
+                onChange={(e) => setFecha(e.target.value)}
+                className="h-12 font-bold"
+              />
+              <Button type="button" variant="outline" onClick={onSaveDate} disabled={updateMut.isPending}>
+                <Save className="h-4 w-4 mr-2" />
+                Guardar fecha
+              </Button>
+            </div>
           </div>
           <div className="space-y-2">
             <Label className="text-primary font-bold">Equipo A</Label>
