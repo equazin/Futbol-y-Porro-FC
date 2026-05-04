@@ -138,6 +138,15 @@ const MatchStats = () => {
       calificacion: r.calificacion,
       presente: true,
     }));
+    const derivedScoreA = payload
+      .filter((r) => r.equipo === "A")
+      .reduce((sum, r) => sum + Number(r.goles || 0), 0);
+    const derivedScoreB = payload
+      .filter((r) => r.equipo === "B")
+      .reduce((sum, r) => sum + Number(r.goles || 0), 0);
+    const nextScoreA = scoreA || derivedScoreA;
+    const nextScoreB = scoreB || derivedScoreB;
+    const hasScoreForElo = nextScoreA !== 0 || nextScoreB !== 0;
 
     try {
       await saveMut.mutateAsync({
@@ -146,10 +155,22 @@ const MatchStats = () => {
         aportePorJugador: FONDO.APORTE_POR_PARTIDO,
       });
       // Transición automática pendiente → jugado al cargar stats
-      if (estado === "pendiente" && payload.length > 0) {
+      if ((estado === "pendiente" || (!eloApplied && hasScoreForElo)) && payload.length > 0) {
         const fechaIso = fecha ? new Date(fecha).toISOString() : match?.fecha;
-        await updateMut.mutateAsync({ id, estado: "jugado" as any, ...voteWindowFor(fechaIso!, "jugado") } as any);
-        setEstado("jugado");
+        const nextEstado = estado === "pendiente" ? "jugado" : estado;
+        const scorePatch = hasScoreForElo
+          ? { equipo_a_score: nextScoreA, equipo_b_score: nextScoreB }
+          : {};
+        await updateMut.mutateAsync({
+          id,
+          estado: nextEstado as any,
+          ...scorePatch,
+          ...voteWindowFor(fechaIso!, nextEstado),
+        } as any);
+        setEstado(nextEstado);
+        setScoreA(nextScoreA);
+        setScoreB(nextScoreB);
+        if (hasScoreForElo) toast.success("ELO actualizado");
         toast.success("Stats guardadas · Partido marcado como jugado");
       } else {
         toast.success("Stats guardadas");

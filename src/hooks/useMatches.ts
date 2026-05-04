@@ -176,7 +176,11 @@ export const applyMatchEloIfNeeded = async (matchId: string): Promise<EloUpdateR
     })),
   ];
 
-  await Promise.all(eloUpdates.map((u) => supabase.from("players").update({ elo: u.elo } as any).eq("id", u.id)));
+  const updateResults = await Promise.all(
+    eloUpdates.map((u) => supabase.from("players").update({ elo: u.elo } as any).eq("id", u.id))
+  );
+  const updateError = updateResults.find((res) => res.error)?.error;
+  if (updateError) throw updateError;
 
   const { error: markErr } = await (supabase as any)
     .from("matches")
