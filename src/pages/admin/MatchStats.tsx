@@ -48,6 +48,14 @@ const toDateTimeLocalValue = (value?: string | null) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
+const voteWindowFor = (fechaIso: string, estado: string) =>
+  estado === "jugado"
+    ? {
+        votacion_abre: fechaIso,
+        votacion_cierra: new Date(new Date(fechaIso).getTime() + 48 * 60 * 60 * 1000).toISOString(),
+      }
+    : {};
+
 const MatchStats = () => {
   const { id } = useParams<{ id: string }>();
   const { data: match, isLoading: loadingM } = useMatch(id);
@@ -139,7 +147,8 @@ const MatchStats = () => {
       });
       // Transición automática pendiente → jugado al cargar stats
       if (estado === "pendiente" && payload.length > 0) {
-        await updateMut.mutateAsync({ id, estado: "jugado" as any });
+        const fechaIso = fecha ? new Date(fecha).toISOString() : match?.fecha;
+        await updateMut.mutateAsync({ id, estado: "jugado" as any, ...voteWindowFor(fechaIso!, "jugado") } as any);
         setEstado("jugado");
         toast.success("Stats guardadas · Partido marcado como jugado");
       } else {
@@ -157,15 +166,17 @@ const MatchStats = () => {
       return;
     }
     try {
+      const fechaIso = new Date(fecha).toISOString();
       await updateMut.mutateAsync({
         id,
-        fecha: new Date(fecha).toISOString(),
+        fecha: fechaIso,
         equipo_a_score: scoreA,
         equipo_b_score: scoreB,
         estado: estado as any,
         mvp_player_id: isFriendly || mvpId === "none" ? null : mvpId,
         gol_de_la_fecha_player_id: isFriendly || golFechaId === "none" ? null : golFechaId,
-      });
+        ...voteWindowFor(fechaIso, estado),
+      } as any);
       toast.success(estado === "pendiente" ? "Partido guardado" : "Partido guardado · ELO actualizado");
     } catch (e: any) {
       if (e?.code === "23505" && e?.message?.includes("matches_fecha_key")) {
@@ -183,9 +194,11 @@ const MatchStats = () => {
       return;
     }
     try {
+      const fechaIso = new Date(fecha).toISOString();
       await updateMut.mutateAsync({
         id,
-        fecha: new Date(fecha).toISOString(),
+        fecha: fechaIso,
+        ...voteWindowFor(fechaIso, estado),
       } as any);
       toast.success("Fecha actualizada");
     } catch (e: any) {
