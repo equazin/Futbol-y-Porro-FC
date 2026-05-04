@@ -40,6 +40,14 @@ interface Row {
   presente: boolean;
 }
 
+const toDateTimeLocalValue = (value?: string | null) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
 const MatchStats = () => {
   const { id } = useParams<{ id: string }>();
   const { data: match, isLoading: loadingM } = useMatch(id);
@@ -54,6 +62,7 @@ const MatchStats = () => {
   const [rows, setRows] = useState<Record<string, Row>>({});
   const [scoreA, setScoreA] = useState(0);
   const [scoreB, setScoreB] = useState(0);
+  const [fecha, setFecha] = useState("");
   const [estado, setEstado] = useState<string>("pendiente");
   const [mvpId, setMvpId] = useState<string>("none");
   const [golFechaId, setGolFechaId] = useState<string>("none");
@@ -79,6 +88,7 @@ const MatchStats = () => {
     if (!match) return;
     setScoreA(Number(match.equipo_a_score ?? 0));
     setScoreB(Number(match.equipo_b_score ?? 0));
+    setFecha(toDateTimeLocalValue(match.fecha));
     setEstado(match.estado);
     setMvpId(match.mvp_player_id ?? "none");
     setGolFechaId(match.gol_de_la_fecha_player_id ?? "none");
@@ -142,18 +152,27 @@ const MatchStats = () => {
 
   const onSaveResult = async () => {
     if (!id) return;
+    if (!fecha) {
+      toast.error("La fecha y hora del partido es obligatoria.");
+      return;
+    }
     try {
       await updateMut.mutateAsync({
         id,
+        fecha: new Date(fecha).toISOString(),
         equipo_a_score: scoreA,
         equipo_b_score: scoreB,
         estado: estado as any,
         mvp_player_id: isFriendly || mvpId === "none" ? null : mvpId,
         gol_de_la_fecha_player_id: isFriendly || golFechaId === "none" ? null : golFechaId,
       });
-      toast.success(estado === "pendiente" ? "Resultado guardado" : "Resultado guardado · ELO actualizado");
+      toast.success(estado === "pendiente" ? "Partido guardado" : "Partido guardado · ELO actualizado");
     } catch (e: any) {
-      toast.error(e.message ?? "No se pudo guardar el resultado.");
+      if (e?.code === "23505" && e?.message?.includes("matches_fecha_key")) {
+        toast.error("Ya existe un partido con esa fecha y hora.");
+        return;
+      }
+      toast.error(e.message ?? "No se pudo guardar el partido.");
     }
   };
 
@@ -304,7 +323,16 @@ const MatchStats = () => {
 
       <section className="rounded-2xl border border-border/60 bg-gradient-card p-4 space-y-4">
         <h2 className="font-black">Resultado y premios</h2>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid md:grid-cols-3 gap-3">
+          <div className="space-y-2 md:col-span-3">
+            <Label>Fecha y hora</Label>
+            <Input
+              type="datetime-local"
+              value={fecha}
+              onChange={(e) => setFecha(e.target.value)}
+              className="h-12 font-bold"
+            />
+          </div>
           <div className="space-y-2">
             <Label className="text-primary font-bold">Equipo A</Label>
             <Input type="number" min={0} value={scoreA} onChange={(e) => setScoreA(Math.max(0, Number(e.target.value) || 0))} className="h-12 text-2xl font-black text-center" />
@@ -387,7 +415,7 @@ const MatchStats = () => {
 
         <Button onClick={onSaveResult} disabled={updateMut.isPending} className="w-full">
           <Sparkles className="h-4 w-4 mr-2" />
-          {updateMut.isPending ? "Guardando..." : "Guardar resultado y premios"}
+          {updateMut.isPending ? "Guardando..." : "Guardar partido"}
         </Button>
       </section>
 
