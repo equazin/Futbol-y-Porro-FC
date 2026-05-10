@@ -119,6 +119,16 @@ export interface MatchPlayerInput {
   presente?: boolean;
 }
 
+const uniqueMatchPlayers = (players: MatchPlayerInput[]) => {
+  const byPlayerId = new Map<string, MatchPlayerInput>();
+  players.forEach((player) => {
+    if (!byPlayerId.has(player.player_id)) {
+      byPlayerId.set(player.player_id, player);
+    }
+  });
+  return Array.from(byPlayerId.values());
+};
+
 export interface EloUpdateResult {
   applied: boolean;
   skippedReason?: string;
@@ -222,6 +232,7 @@ export const useSaveMatchPlayers = () => {
       aportePorJugador?: number;
     }) => {
       const aporte = Math.max(0, Number(aportePorJugador ?? FONDO.APORTE_POR_PARTIDO));
+      const uniquePlayers = uniqueMatchPlayers(players);
 
       const { error: delErr } = await supabase.from("match_players").delete().eq("match_id", matchId);
       if (delErr) throw delErr;
@@ -238,22 +249,23 @@ export const useSaveMatchPlayers = () => {
       const { error: delContribsErr } = await supabase.from("contributions").delete().eq("match_id", matchId);
       if (delContribsErr) throw delContribsErr;
 
-      if (players.length > 0) {
-        const rows = players.map((p) => ({ match_id: matchId, ...p }));
+      if (uniquePlayers.length > 0) {
+        const rows = uniquePlayers.map((p) => ({ match_id: matchId, ...p }));
         const { error: insErr } = await supabase.from("match_players").insert(rows);
         if (insErr) throw insErr;
 
-        // Fetch player types to exclude guests from contributions
-        const ids = players.map((p) => p.player_id);
-        const { data: playerRows } = await supabase
+        const ids = uniquePlayers.map((p) => p.player_id);
+        const { data: playerRows, error: playerRowsErr } = await supabase
           .from("players")
           .select("id, tipo")
           .in("id", ids);
+        if (playerRowsErr) throw playerRowsErr;
+
         const guestIds = new Set(
           (playerRows ?? []).filter((r: any) => r.tipo === "invitado").map((r: any) => r.id)
         );
 
-        const contribs = players
+        const contribs = uniquePlayers
           .filter((p) => p.presente !== false && !guestIds.has(p.player_id))
           .map((p) => ({
             match_id: matchId,
@@ -262,7 +274,9 @@ export const useSaveMatchPlayers = () => {
             pagado: paidByPlayer.get(p.player_id) ?? false,
           }));
         if (contribs.length > 0) {
-          const { error: cErr } = await supabase.from("contributions").insert(contribs);
+          const { error: cErr } = await supabase
+            .from("contributions")
+            .upsert(contribs, { onConflict: "match_id,player_id" });
           if (cErr) throw cErr;
         }
       }

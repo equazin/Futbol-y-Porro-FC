@@ -232,6 +232,7 @@ export const MatchWizard = () => {
     const fecha = new Date(draft.fecha).toISOString();
     const fechaTime = new Date(fecha).getTime();
     const existingMatch = matches.find((match) => new Date(match.fecha).getTime() === fechaTime);
+    let createdMatchId: string | null = null;
 
     if (existingMatch) {
       toast.info("Ya existe un partido con esa fecha y hora. Te llevo a editarlo.");
@@ -247,6 +248,7 @@ export const MatchWizard = () => {
         is_friendly: draft.isFriendly,
         elo_applied: false,
       } as any);
+      createdMatchId = match.id;
 
       const playersPayload = [
         ...draft.teamA.map((id) => ({
@@ -281,6 +283,9 @@ export const MatchWizard = () => {
       if (e?.code === "23505" && e?.message?.includes("matches_fecha_key")) {
         toast.error("Ya existe un partido con esa fecha y hora. Cambia la fecha o editalo desde Partidos.");
         return;
+      }
+      if (createdMatchId) {
+        await supabase.from("matches").delete().eq("id", createdMatchId);
       }
       toast.error(e.message ?? "No se pudo crear el partido.");
     }
