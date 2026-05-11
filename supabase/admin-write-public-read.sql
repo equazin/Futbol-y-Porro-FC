@@ -9,28 +9,28 @@ create extension if not exists pgcrypto;
 
 do $$
 begin
-  create type public.match_status as enum ('pendiente', 'jugado', 'cerrado');
+  execute 'create type public.match_status as enum (''pendiente'', ''jugado'', ''cerrado'')';
 exception
   when duplicate_object then null;
 end $$;
 
 do $$
 begin
-  create type public.team_side as enum ('A', 'B');
+  execute 'create type public.team_side as enum (''A'', ''B'')';
 exception
   when duplicate_object then null;
 end $$;
 
 do $$
 begin
-  create type public.player_position as enum ('arquero', 'defensor', 'mediocampista', 'delantero');
+  execute 'create type public.player_position as enum (''arquero'', ''defensor'', ''mediocampista'', ''delantero'')';
 exception
   when duplicate_object then null;
 end $$;
 
 do $$
 begin
-  create type public.vote_type as enum ('mvp', 'goal');
+  execute 'create type public.vote_type as enum (''mvp'', ''goal'')';
 exception
   when duplicate_object then null;
 end $$;
