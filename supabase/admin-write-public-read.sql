@@ -22,6 +22,7 @@ alter table if exists public.goal_events enable row level security;
 alter table if exists public.contributions enable row level security;
 alter table if exists public.fines enable row level security;
 alter table if exists public.fund_movements enable row level security;
+alter table if exists public.votes enable row level security;
 
 -- Remove permissive/open policies
 drop policy if exists open_all_players on public.players;
@@ -31,6 +32,7 @@ drop policy if exists open_all_goal_events on public.goal_events;
 drop policy if exists open_all_contributions on public.contributions;
 drop policy if exists open_all_fines on public.fines;
 drop policy if exists open_all_fund_movements on public.fund_movements;
+drop policy if exists open_all_votes on public.votes;
 
 drop policy if exists public_read_players on public.players;
 drop policy if exists public_read_matches on public.matches;
@@ -39,6 +41,9 @@ drop policy if exists public_read_goal_events on public.goal_events;
 drop policy if exists public_read_contributions on public.contributions;
 drop policy if exists public_read_fines on public.fines;
 drop policy if exists public_read_fund_movements on public.fund_movements;
+drop policy if exists public_read_votes on public.votes;
+drop policy if exists public_insert_votes on public.votes;
+drop policy if exists public_update_votes on public.votes;
 
 drop policy if exists admin_write_players on public.players;
 drop policy if exists admin_write_matches on public.matches;
@@ -47,6 +52,7 @@ drop policy if exists admin_write_goal_events on public.goal_events;
 drop policy if exists admin_write_contributions on public.contributions;
 drop policy if exists admin_write_fines on public.fines;
 drop policy if exists admin_write_fund_movements on public.fund_movements;
+drop policy if exists admin_delete_votes on public.votes;
 
 -- Read for everyone (anon + authenticated)
 create policy public_read_players on public.players
@@ -63,6 +69,12 @@ create policy public_read_fines on public.fines
   for select using (true);
 create policy public_read_fund_movements on public.fund_movements
   for select using (true);
+create policy public_read_votes on public.votes
+  for select using (true);
+create policy public_insert_votes on public.votes
+  for insert with check (true);
+create policy public_update_votes on public.votes
+  for update using (true) with check (true);
 
 -- Write only for admin emails
 -- Add more emails here when needed.
@@ -139,6 +151,12 @@ create policy admin_write_fund_movements on public.fund_movements
     and lower(coalesce(auth.jwt() ->> 'email', '')) in ('nicopbenitez84@gmail.com')
   )
   with check (
+    auth.role() = 'authenticated'
+    and lower(coalesce(auth.jwt() ->> 'email', '')) in ('nicopbenitez84@gmail.com')
+  );
+
+create policy admin_delete_votes on public.votes
+  for delete using (
     auth.role() = 'authenticated'
     and lower(coalesce(auth.jwt() ->> 'email', '')) in ('nicopbenitez84@gmail.com')
   );

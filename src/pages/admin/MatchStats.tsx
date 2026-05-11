@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, AlertTriangle, Goal, Lock, Save, Sparkles, Star, Vote, Info } from "lucide-react";
+import { ArrowLeft, AlertTriangle, Goal, Lock, Save, Sparkles, Star, Vote, Info, Trash2, RotateCcw, UserX } from "lucide-react";
 import { fmtPartidoLargo } from "@/lib/dates";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -28,8 +28,8 @@ import {
   useUpdateMatch,
   type MatchPlayerInput,
 } from "@/hooks/useMatches";
-import { usePlayers } from "@/hooks/usePlayers";
-import { useVotes, tallyVotes } from "@/hooks/useVotes";
+import { usePlayers, type Player } from "@/hooks/usePlayers";
+import { useDeleteVote, useDeleteVoterVotes, useResetMatchVoting, useVotes, tallyVotes, type Vote as VoteRow } from "@/hooks/useVotes";
 import { FONDO, CALIFICACION_CRITERIOS, formatARS } from "@/lib/scoring";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -41,6 +41,19 @@ interface Row {
   calificacion: number | null;
   presente: boolean;
 }
+
+interface VoteAuditRow {
+  voter: Player | null;
+  voterId: string;
+  mvpVote?: VoteRow;
+  goalVote?: VoteRow;
+  outsideRoster?: boolean;
+}
+
+type VoteConfirmAction =
+  | { kind: "vote"; voteId: string; label: string }
+  | { kind: "voter"; voterId: string; label: string }
+  | { kind: "reset" };
 
 const toDateTimeLocalValue = (value?: string | null) => {
   if (!value) return "";
@@ -73,6 +86,9 @@ const MatchStats = () => {
   const updateMut = useUpdateMatch();
   const closeMut = useCloseMatchVoting();
   const applyEloMut = useApplyMatchElo();
+  const deleteVoteMut = useDeleteVote();
+  const deleteVoterVotesMut = useDeleteVoterVotes();
+  const resetVotingMut = useResetMatchVoting();
 
   const [rows, setRows] = useState<Record<string, Row>>({});
   const [scoreA, setScoreA] = useState(0);
@@ -84,6 +100,7 @@ const MatchStats = () => {
   const [aportePorJugador, setAportePorJugador] = useState<number>(FONDO.APORTE_POR_PARTIDO);
   const [confirmClose, setConfirmClose] = useState(false);
   const [confirmEloRetry, setConfirmEloRetry] = useState(false);
+  const [voteConfirmAction, setVoteConfirmAction] = useState<VoteConfirmAction | null>(null);
 
   useEffect(() => {
     if (!existingMP.length) return;
@@ -141,6 +158,64 @@ const MatchStats = () => {
   }, [teamA, teamB, scoreA, scoreB, presentes, mvpId, mvpTally]);
 
   const playerById = (playerId: string) => players.find((p) => p.id === playerId);
+
+  const voteAudit = useMemo(() => {
+    const votesByVoter = new Map<string, { mvpVote?: VoteRow; goalVote?: VoteRow }>();
+    votes.forEach((vote) => {
+      const entry = votesByVoter.get(vote.voter_player_id) ?? {};
+      if (vote.type === "mvp") entry.mvpVote = vote;
+      if (vote.type === "goal") entry.goalVote = vote;
+      votesByVoter.set(vote.voter_player_id, entry);
+    });
+
+    const officialVoterIds = new Set<string>();
+    const officialRows = presentes
+      .map((row) => {
+        const voter = players.find((player) => player.id === row.player_id) ?? null;
+        if (!voter || (voter.tipo ?? "titular") === "invitado") return null;
+        officialVoterIds.add(row.player_id);
+        const entry = votesByVoter.get(row.player_id) ?? {};
+        return {
+          voter,
+          voterId: row.player_id,
+          mvpVote: entry.mvpVote,
+          goalVote: entry.goalVote,
+        };
+      })
+      .filter((row): row is VoteAuditRow => row !== null);
+
+    const outsideRows = Array.from(votesByVoter.entries())
+      .filter(([voterId]) => !officialVoterIds.has(voterId))
+      .map(([voterId, entry]) => ({
+        voter: players.find((player) => player.id === voterId) ?? null,
+        voterId,
+        mvpVote: entry.mvpVote,
+        goalVote: entry.goalVote,
+        outsideRoster: true,
+      }));
+
+    const rows = [...officialRows, ...outsideRows].sort((a, b) => {
+      const aName = a.voter?.apodo ?? a.voter?.nombre ?? a.voterId;
+      const bName = b.voter?.apodo ?? b.voter?.nombre ?? b.voterId;
+      return aName.localeCompare(bName);
+    });
+
+    return {
+      rows,
+      completeCount: officialRows.filter((row) => row.mvpVote && row.goalVote).length,
+      officialCount: officialRows.length,
+      outsideCount: outsideRows.length,
+    };
+  }, [players, presentes, votes]);
+
+  const voteTargetName = (vote?: VoteRow) => {
+    if (!vote) return "Sin voto";
+    const player = playerById(vote.voted_player_id);
+    return player?.apodo ?? player?.nombre ?? "Jugador eliminado";
+  };
+
+  const voteCreatedAt = (vote?: VoteRow) =>
+    vote ? new Date(vote.created_at).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" }) : "-";
 
   const updateRow = (playerId: string, patch: Partial<Row>) =>
     setRows((prev) => ({ ...prev, [playerId]: { ...prev[playerId], ...patch } }));
@@ -283,11 +358,36 @@ const MatchStats = () => {
     }
   };
 
+  const onConfirmVoteAction = async () => {
+    if (!id || !voteConfirmAction) return;
+    try {
+      if (voteConfirmAction.kind === "vote") {
+        await deleteVoteMut.mutateAsync({ matchId: id, voteId: voteConfirmAction.voteId });
+        toast.success("Voto anulado");
+      }
+      if (voteConfirmAction.kind === "voter") {
+        await deleteVoterVotesMut.mutateAsync({ matchId: id, voterId: voteConfirmAction.voterId });
+        toast.success("Votos del jugador anulados");
+      }
+      if (voteConfirmAction.kind === "reset") {
+        await resetVotingMut.mutateAsync(id);
+        setEstado("jugado");
+        setMvpId("none");
+        setGolFechaId("none");
+        toast.success("Votacion reiniciada por 48 hs");
+      }
+      setVoteConfirmAction(null);
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e, "No se pudo actualizar la votacion."));
+    }
+  };
+
   if (loadingM || loadingMP || !match) {
     return <p className="text-muted-foreground">Cargando partido...</p>;
   }
 
   const headerFecha = fecha ? new Date(fecha).toISOString() : match.fecha;
+  const voteActionPending = deleteVoteMut.isPending || deleteVoterVotesMut.isPending || resetVotingMut.isPending;
 
   const TeamCard = ({
     teamKey,
@@ -620,6 +720,114 @@ const MatchStats = () => {
           </div>
         )}
 
+        <div className="rounded-xl border border-border/60 bg-card/30 overflow-hidden">
+          <div className="px-3 py-3 border-b border-border/40 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-black flex items-center gap-2">
+                <UserX className="h-4 w-4 text-primary" />
+                Auditoria de votos
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {voteAudit.completeCount}/{voteAudit.officialCount} jugadores oficiales con MVP y Gol registrados
+                {voteAudit.outsideCount > 0 ? ` · ${voteAudit.outsideCount} votante fuera del plantel` : ""}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setVoteConfirmAction({ kind: "reset" })}
+              disabled={resetVotingMut.isPending || estado === "pendiente"}
+              className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            >
+              <RotateCcw className="h-4 w-4 mr-1.5" />
+              Reiniciar votacion
+            </Button>
+          </div>
+
+          {voteAudit.rows.length === 0 ? (
+            <p className="p-4 text-sm text-muted-foreground">Todavia no hay jugadores o votos para auditar.</p>
+          ) : (
+            <div className="divide-y divide-border/30">
+              {voteAudit.rows.map((row) => {
+                const voterName = row.voter?.apodo ?? row.voter?.nombre ?? "Jugador eliminado";
+                const hasVotes = Boolean(row.mvpVote || row.goalVote);
+                return (
+                  <div key={row.voterId} className="p-3 grid gap-3 lg:grid-cols-[minmax(180px,1fr)_minmax(0,1.4fr)_auto] lg:items-center">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <PlayerAvatar nombre={row.voter?.nombre ?? "?"} foto_url={row.voter?.foto_url} size="sm" />
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm truncate">{voterName}</p>
+                        <p className={`text-[10px] uppercase tracking-wider font-bold ${row.outsideRoster ? "text-yellow-600" : hasVotes ? "text-primary" : "text-muted-foreground"}`}>
+                          {row.outsideRoster ? "Fuera del plantel" : hasVotes ? row.mvpVote && row.goalVote ? "Completo" : "Incompleto" : "No voto"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid sm:grid-cols-2 gap-2">
+                      <div className="rounded-lg border border-mvp/25 bg-mvp/10 p-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-[10px] uppercase tracking-wider text-mvp font-black">MVP</p>
+                            <p className="text-sm font-bold truncate">{voteTargetName(row.mvpVote)}</p>
+                            <p className="text-[10px] text-muted-foreground">{voteCreatedAt(row.mvpVote)}</p>
+                          </div>
+                          {row.mvpVote && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => setVoteConfirmAction({ kind: "vote", voteId: row.mvpVote!.id, label: `MVP de ${voterName}` })}
+                              disabled={deleteVoteMut.isPending}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg border border-stats/25 bg-stats/10 p-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-[10px] uppercase tracking-wider text-stats font-black">Gol</p>
+                            <p className="text-sm font-bold truncate">{voteTargetName(row.goalVote)}</p>
+                            <p className="text-[10px] text-muted-foreground">{voteCreatedAt(row.goalVote)}</p>
+                          </div>
+                          {row.goalVote && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => setVoteConfirmAction({ kind: "vote", voteId: row.goalVote!.id, label: `Gol de ${voterName}` })}
+                              disabled={deleteVoteMut.isPending}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setVoteConfirmAction({ kind: "voter", voterId: row.voterId, label: voterName })}
+                      disabled={!hasVotes || deleteVoterVotesMut.isPending}
+                      className="lg:justify-self-end border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:text-muted-foreground"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1.5" />
+                      Anular votos
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         {closeBlockers.length > 0 && estado !== "cerrado" && (
           <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 space-y-1">
             <p className="text-xs font-bold text-yellow-600 flex items-center gap-1.5">
@@ -673,6 +881,37 @@ const MatchStats = () => {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={() => onApplyElo(true)} className="bg-primary text-primary-foreground hover:bg-primary/90">
               Reintentar ELO
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={voteConfirmAction !== null} onOpenChange={(open) => !open && setVoteConfirmAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {voteConfirmAction?.kind === "reset"
+                ? "Reiniciar votacion?"
+                : voteConfirmAction?.kind === "voter"
+                  ? "Anular votos del jugador?"
+                  : "Anular voto?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {voteConfirmAction?.kind === "reset"
+                ? "Se borraran todos los votos del partido, se limpiaran MVP y Gol de la fecha, y la votacion quedara abierta por 48 horas desde ahora."
+                : voteConfirmAction?.kind === "voter"
+                  ? `Se borraran los votos MVP y Gol registrados por ${voteConfirmAction.label}.`
+                  : `Se borrara el voto ${voteConfirmAction?.label ?? ""}.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={voteActionPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={onConfirmVoteAction}
+              disabled={voteActionPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {voteActionPending ? "Procesando..." : "Confirmar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

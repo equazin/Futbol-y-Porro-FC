@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { VOTING_WINDOW_MS } from "@/hooks/useMatches";
 
 export type Vote = Database["public"]["Tables"]["votes"]["Row"];
 export type VoteType = Database["public"]["Enums"]["vote_type"];
@@ -60,6 +61,68 @@ export const useCastVotes = () => {
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["votes", vars.matchId] });
       qc.invalidateQueries({ queryKey: ["votes", vars.matchId, "by", vars.voterId] });
+    },
+  });
+};
+
+export const useDeleteVote = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ matchId, voteId }: { matchId: string; voteId: string }) => {
+      const { error } = await supabase.from("votes").delete().eq("id", voteId);
+      if (error) throw error;
+      return matchId;
+    },
+    onSuccess: (matchId) => {
+      qc.invalidateQueries({ queryKey: ["votes", matchId] });
+    },
+  });
+};
+
+export const useDeleteVoterVotes = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ matchId, voterId }: { matchId: string; voterId: string }) => {
+      const { error } = await supabase
+        .from("votes")
+        .delete()
+        .eq("match_id", matchId)
+        .eq("voter_player_id", voterId);
+      if (error) throw error;
+      return matchId;
+    },
+    onSuccess: (matchId) => {
+      qc.invalidateQueries({ queryKey: ["votes", matchId] });
+    },
+  });
+};
+
+export const useResetMatchVoting = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (matchId: string) => {
+      const now = new Date();
+      const closesAt = new Date(now.getTime() + VOTING_WINDOW_MS);
+      const { error: votesError } = await supabase.from("votes").delete().eq("match_id", matchId);
+      if (votesError) throw votesError;
+
+      const { error: matchError } = await supabase
+        .from("matches")
+        .update({
+          estado: "jugado",
+          mvp_player_id: null,
+          gol_de_la_fecha_player_id: null,
+          votacion_abre: now.toISOString(),
+          votacion_cierra: closesAt.toISOString(),
+        } as any)
+        .eq("id", matchId);
+      if (matchError) throw matchError;
+    },
+    onSuccess: (_, matchId) => {
+      qc.invalidateQueries({ queryKey: ["votes", matchId] });
+      qc.invalidateQueries({ queryKey: ["matches"] });
+      qc.invalidateQueries({ queryKey: ["match", matchId] });
+      qc.invalidateQueries({ queryKey: ["rankings"] });
     },
   });
 };
