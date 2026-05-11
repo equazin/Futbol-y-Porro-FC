@@ -10,6 +10,7 @@ import { RequireAdmin } from "@/components/auth/RequireAdmin";
 import Index from "./pages/Index";
 import Ranking from "./pages/Ranking";
 import RankingPublico from "./pages/RankingPublico";
+import AnuncioGanadores from "./pages/AnuncioGanadores";
 import Votacion from "./pages/Votacion";
 import Partidos from "./pages/Partidos";
 import PartidoDetalle from "./pages/PartidoDetalle";
@@ -48,6 +49,7 @@ const AppShell = () => {
               <Route path="/partidos/:id" element={<PartidoDetalle backPath="/partidos" readOnly />} />
               <Route path="/jugadores" element={<Jugadores readOnly />} />
               <Route path="/ranking" element={<Ranking />} />
+              <Route path="/anuncio/:id" element={<AnuncioGanadores />} />
               <Route path="/votacion" element={<Votacion />} />
               <Route path="/fondo" element={<Fondo readOnly />} />
               <Route path="/multas" element={<Multas readOnly />} />

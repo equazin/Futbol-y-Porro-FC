@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, AlertTriangle, Goal, Lock, Save, Sparkles, Star, Vote, Info, Trash2, RotateCcw, UserX } from "lucide-react";
+import { ArrowLeft, AlertTriangle, Copy, ExternalLink, Goal, Lock, Megaphone, Save, Sparkles, Star, Vote, Info, Trash2, RotateCcw, UserX } from "lucide-react";
 import { fmtPartidoLargo } from "@/lib/dates";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -74,6 +74,11 @@ const voteWindowFor = (fechaIso: string, estado: string) =>
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 
+const getAnnouncementUrl = (matchId: string) => {
+  if (typeof window === "undefined") return `#/anuncio/${matchId}`;
+  return `${window.location.origin}${window.location.pathname}#/anuncio/${matchId}`;
+};
+
 const MatchStats = () => {
   const { id } = useParams<{ id: string }>();
   const { data: match, isLoading: loadingM } = useMatch(id);
@@ -145,6 +150,9 @@ const MatchStats = () => {
   const totalVoters = useMemo(() => new Set(votes.map((v) => v.voter_player_id)).size, [votes]);
   const isFriendly = Boolean((match as any)?.is_friendly);
   const eloApplied = Boolean((match as any)?.elo_applied);
+  const announcementMvpId = match?.mvp_player_id ?? mvpTally[0]?.player_id;
+  const announcementGoalId = match?.gol_de_la_fecha_player_id ?? goalTally[0]?.player_id;
+  const announcementUrl = id ? getAnnouncementUrl(id) : "";
 
   const closeBlockers = useMemo(() => {
     const issues: string[] = [];
@@ -216,6 +224,36 @@ const MatchStats = () => {
 
   const voteCreatedAt = (vote?: VoteRow) =>
     vote ? new Date(vote.created_at).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" }) : "-";
+
+  const copyToClipboard = async (text: string, successMessage: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(successMessage);
+    } catch {
+      toast.error("No se pudo copiar al portapapeles.");
+    }
+  };
+
+  const copyAnnouncementLink = () => {
+    if (!announcementUrl) return;
+    void copyToClipboard(announcementUrl, "Link del anuncio copiado");
+  };
+
+  const copyAnnouncementText = () => {
+    if (!announcementUrl || !match) return;
+    const mvp = announcementMvpId ? playerById(announcementMvpId) : null;
+    const goal = announcementGoalId ? playerById(announcementGoalId) : null;
+    const status = estado === "cerrado" ? "Ganadores oficiales" : "Ganadores provisorios";
+    const lines = [
+      `${status} - Futbol y Porro FC`,
+      fmtPartidoLargo(match.fecha),
+      `Resultado: Equipo A ${match.equipo_a_score} - ${match.equipo_b_score} Equipo B`,
+      `MVP: ${mvp?.apodo ?? mvp?.nombre ?? "-"}`,
+      `Gol de la fecha: ${goal?.apodo ?? goal?.nombre ?? "-"}`,
+      announcementUrl,
+    ];
+    void copyToClipboard(lines.join("\n"), "Texto del anuncio copiado");
+  };
 
   const updateRow = (playerId: string, patch: Partial<Row>) =>
     setRows((prev) => ({ ...prev, [playerId]: { ...prev[playerId], ...patch } }));
@@ -719,6 +757,34 @@ const MatchStats = () => {
             </div>
           </div>
         )}
+
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <div>
+            <p className="font-black flex items-center gap-2">
+              <Megaphone className="h-4 w-4 text-primary" />
+              Anuncio de ganadores
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Copia un link publico para mostrar MVP y Gol de la fecha. Si todavia no cerraste la votacion, el anuncio usa el conteo actual.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button asChild type="button" variant="outline" size="sm" disabled={!id}>
+              <Link to={`/anuncio/${id}`}>
+                <ExternalLink className="h-4 w-4 mr-1.5" />
+                Abrir
+              </Link>
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={copyAnnouncementLink} disabled={!announcementUrl}>
+              <Copy className="h-4 w-4 mr-1.5" />
+              Copiar link
+            </Button>
+            <Button type="button" size="sm" onClick={copyAnnouncementText} disabled={!announcementUrl || (!announcementMvpId && !announcementGoalId)}>
+              <Megaphone className="h-4 w-4 mr-1.5" />
+              Copiar texto
+            </Button>
+          </div>
+        </div>
 
         <div className="rounded-xl border border-border/60 bg-card/30 overflow-hidden">
           <div className="px-3 py-3 border-b border-border/40 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
