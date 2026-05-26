@@ -84,7 +84,8 @@ returns table (
   id uuid,
   nombre text,
   apodo text,
-  foto_url text
+  foto_url text,
+  status text
 )
 language plpgsql
 security definer
@@ -92,26 +93,51 @@ set search_path = public
 as $$
 declare
   normalized text := public.normalize_dni(p_dni);
+  m_record public.matches;
+  matched_player_id uuid;
+  matched_nombre text;
+  matched_apodo text;
+  matched_foto text;
 begin
   if length(normalized) < 7 or length(normalized) > 9 then
+    return query select null::uuid, null::text, null::text, null::text, 'invalid_dni'::text;
     return;
   end if;
 
-  return query
-    select p.id, p.nombre, p.apodo, p.foto_url
-    from public.match_players mp
-    join public.players p on p.id = mp.player_id
-    join public.player_identities pi on pi.player_id = p.id
-    join public.matches m on m.id = mp.match_id
-    where mp.match_id = p_match_id
-      and mp.presente = true
-      and coalesce(p.tipo, 'titular') <> 'invitado'
-      and m.estado = 'jugado'
-      and coalesce(m.is_friendly, false) = false
-      and now() >= coalesce(m.votacion_abre, m.fecha)
-      and now() < coalesce(m.votacion_cierra, m.fecha + interval '48 hours')
-      and pi.dni_hash = public.hash_dni(normalized)
-    limit 1;
+  select * into m_record from public.matches where matches.id = p_match_id;
+  if not found then
+    return query select null::uuid, null::text, null::text, null::text, 'match_not_found'::text;
+    return;
+  end if;
+
+  if m_record.estado <> 'jugado' or coalesce(m_record.is_friendly, false) = true then
+    return query select null::uuid, null::text, null::text, null::text, 'match_not_votable'::text;
+    return;
+  end if;
+
+  if now() < coalesce(m_record.votacion_abre, m_record.fecha)
+     or now() >= coalesce(m_record.votacion_cierra, m_record.fecha + interval '48 hours') then
+    return query select null::uuid, null::text, null::text, null::text, 'window_closed'::text;
+    return;
+  end if;
+
+  select p.id, p.nombre, p.apodo, p.foto_url
+    into matched_player_id, matched_nombre, matched_apodo, matched_foto
+  from public.match_players mp
+  join public.players p on p.id = mp.player_id
+  join public.player_identities pi on pi.player_id = p.id
+  where mp.match_id = p_match_id
+    and mp.presente = true
+    and coalesce(p.tipo, 'titular') <> 'invitado'
+    and pi.dni_hash = public.hash_dni(normalized)
+  limit 1;
+
+  if matched_player_id is null then
+    return query select null::uuid, null::text, null::text, null::text, 'not_eligible'::text;
+    return;
+  end if;
+
+  return query select matched_player_id, matched_nombre, matched_apodo, matched_foto, 'ok'::text;
 end;
 $$;
 
@@ -130,13 +156,14 @@ declare
   voter_id uuid;
   score_a int;
   score_b int;
-  winner_team public.team_side;
+  winner_team text;
   mvp_is_eligible boolean;
   goal_is_eligible boolean;
 begin
   select v.id
     into voter_id
   from public.verify_match_voter(p_match_id, p_dni) v
+  where v.status = 'ok'
   limit 1;
 
   if voter_id is null then
@@ -158,7 +185,7 @@ begin
     raise exception 'Para votar MVP primero tiene que estar cargado el resultado con equipo ganador.';
   end if;
 
-  winner_team := case when score_a > score_b then 'A'::public.team_side else 'B'::public.team_side end;
+  winner_team := case when score_a > score_b then 'A' else 'B' end;
 
   select exists(
     select 1
@@ -167,7 +194,7 @@ begin
     where mp.match_id = p_match_id
       and mp.player_id = p_mvp_voted_id
       and mp.presente = true
-      and mp.equipo = winner_team
+      and mp.equipo::text = winner_team
       and coalesce(p.tipo, 'titular') <> 'invitado'
   ) into mvp_is_eligible;
 

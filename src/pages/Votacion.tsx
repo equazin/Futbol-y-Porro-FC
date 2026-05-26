@@ -119,6 +119,7 @@ const Votacion = () => {
     try {
       await castMut.mutateAsync({ matchId, voterId, dni, mvpVotedId: mvpVote, goalVotedId: goalVote });
       toast.success("Votos registrados");
+      setDni("");
       setStep("done");
     } catch (e: any) {
       toast.error(e.message ?? "No se pudo registrar la votacion");
@@ -239,7 +240,7 @@ const Votacion = () => {
                 <Input
                   type="password"
                   inputMode="numeric"
-                  autoComplete="off"
+                  autoComplete="one-time-code"
                   value={dni}
                   onChange={(e) => setDni(e.target.value)}
                   onKeyDown={(e) => {

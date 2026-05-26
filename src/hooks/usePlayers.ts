@@ -13,6 +13,26 @@ export interface VerifiedVoter {
   foto_url: string | null;
 }
 
+type VerifyVoterStatus =
+  | "ok"
+  | "invalid_dni"
+  | "match_not_found"
+  | "match_not_votable"
+  | "window_closed"
+  | "not_eligible";
+
+interface VerifyVoterRow extends VerifiedVoter {
+  status: VerifyVoterStatus;
+}
+
+const VERIFY_VOTER_MESSAGES: Record<Exclude<VerifyVoterStatus, "ok">, string> = {
+  invalid_dni: "El DNI no es válido. Revisá los números e intentá de nuevo.",
+  match_not_found: "No encontramos el partido.",
+  match_not_votable: "Este partido todavía no está habilitado para votar.",
+  window_closed: "La votación de este partido está cerrada.",
+  not_eligible: "Ese DNI no corresponde a un jugador oficial presente en este partido.",
+};
+
 export interface UsePlayersOptions {
   onlyActive?: boolean;
   tipo?: "titular" | "invitado" | "all";
@@ -68,15 +88,20 @@ export const useSetPlayerDni = () => {
 
 export const useVerifyMatchVoter = () =>
   useMutation({
-    mutationFn: async ({ matchId, dni }: { matchId: string; dni: string }) => {
+    mutationFn: async ({ matchId, dni }: { matchId: string; dni: string }): Promise<VerifiedVoter> => {
       const { data, error } = await (supabase as any).rpc("verify_match_voter", {
         p_match_id: matchId,
         p_dni: dni,
       });
       if (error) throw error;
-      const voter = (data ?? [])[0] as VerifiedVoter | undefined;
-      if (!voter) throw new Error("No encontramos un jugador habilitado para votar con ese DNI.");
-      return voter;
+      const row = (data ?? [])[0] as VerifyVoterRow | undefined;
+      if (!row) {
+        throw new Error("No pudimos verificar el DNI. Intentá de nuevo.");
+      }
+      if (row.status !== "ok") {
+        throw new Error(VERIFY_VOTER_MESSAGES[row.status]);
+      }
+      return { id: row.id, nombre: row.nombre, apodo: row.apodo, foto_url: row.foto_url };
     },
   });
 
