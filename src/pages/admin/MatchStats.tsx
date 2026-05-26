@@ -64,6 +64,8 @@ const toDateTimeLocalValue = (value?: string | null) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
+const isDateOnlyValue = (value?: string | null) => /^\d{4}-\d{2}-\d{2}$/.test(value ?? "");
+
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 
@@ -333,7 +335,7 @@ const MatchStats = () => {
     }
     try {
       const fechaIso = new Date(fecha).toISOString();
-      await updateMut.mutateAsync({
+      const updated = await updateMut.mutateAsync({
         id,
         fecha: fechaIso,
         equipo_a_score: scoreA,
@@ -343,6 +345,10 @@ const MatchStats = () => {
         gol_de_la_fecha_player_id: isFriendly || golFechaId === "none" ? null : golFechaId,
         ...buildVotingWindowPatch(fechaIso, estado),
       } as any);
+      if (isDateOnlyValue(updated?.fecha)) {
+        toast.error("La base esta guardando solo la fecha y descarta la hora. Ejecuta el SQL fix-match-fecha-timestamptz antes de volver a guardar.");
+        return;
+      }
       toast.success(estado === "pendiente" ? "Partido guardado" : "Partido guardado · ELO actualizado");
     } catch (e: any) {
       if (e?.code === "23505" && e?.message?.includes("matches_fecha_key")) {
@@ -361,11 +367,15 @@ const MatchStats = () => {
     }
     try {
       const fechaIso = new Date(fecha).toISOString();
-      await updateMut.mutateAsync({
+      const updated = await updateMut.mutateAsync({
         id,
         fecha: fechaIso,
         ...buildVotingWindowPatch(fechaIso, estado),
       } as any);
+      if (isDateOnlyValue(updated?.fecha)) {
+        toast.error("La base esta guardando solo la fecha y descarta la hora. Ejecuta el SQL fix-match-fecha-timestamptz antes de volver a guardar.");
+        return;
+      }
       toast.success("Fecha actualizada");
     } catch (e: any) {
       if (e?.code === "23505" && e?.message?.includes("matches_fecha_key")) {

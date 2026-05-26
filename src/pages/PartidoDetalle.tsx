@@ -28,6 +28,7 @@ import {
   useUpdateMatch,
   useCloseMatchVoting,
   useMatchContributionAmount,
+  buildVotingWindowPatch,
   type MatchPlayerInput,
 } from "@/hooks/useMatches";
 import { useVotes, tallyVotes } from "@/hooks/useVotes";
@@ -204,7 +205,7 @@ const PartidoDetalle = ({ backPath = "/admin/partidos", readOnly = false }: { ba
   };
 
   const onSaveResultado = async () => {
-    if (!id) return;
+    if (!id || !match) return;
     try {
       await updateMut.mutateAsync({
         id,
@@ -213,6 +214,7 @@ const PartidoDetalle = ({ backPath = "/admin/partidos", readOnly = false }: { ba
         estado: estado as any,
         mvp_player_id: mvpId || null,
         gol_de_la_fecha_player_id: golFechaId || null,
+        ...buildVotingWindowPatch(match.fecha, estado),
       });
       toast.success("Resultado guardado");
     } catch (e: any) {
