@@ -6,6 +6,13 @@ export type Player = Database["public"]["Tables"]["players"]["Row"];
 export type PlayerInsert = Database["public"]["Tables"]["players"]["Insert"];
 export type PlayerUpdate = Database["public"]["Tables"]["players"]["Update"];
 
+export interface VerifiedVoter {
+  id: string;
+  nombre: string;
+  apodo: string | null;
+  foto_url: string | null;
+}
+
 export interface UsePlayersOptions {
   onlyActive?: boolean;
   tipo?: "titular" | "invitado" | "all";
@@ -44,6 +51,34 @@ export const useCreatePlayer = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["players"] }),
   });
 };
+
+export const useSetPlayerDni = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ playerId, dni }: { playerId: string; dni: string }) => {
+      const { error } = await (supabase as any).rpc("set_player_dni", {
+        p_player_id: playerId,
+        p_dni: dni,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["players"] }),
+  });
+};
+
+export const useVerifyMatchVoter = () =>
+  useMutation({
+    mutationFn: async ({ matchId, dni }: { matchId: string; dni: string }) => {
+      const { data, error } = await (supabase as any).rpc("verify_match_voter", {
+        p_match_id: matchId,
+        p_dni: dni,
+      });
+      if (error) throw error;
+      const voter = (data ?? [])[0] as VerifiedVoter | undefined;
+      if (!voter) throw new Error("No encontramos un jugador habilitado para votar con ese DNI.");
+      return voter;
+    },
+  });
 
 export const useCreateGuestPlayer = () => {
   const qc = useQueryClient();

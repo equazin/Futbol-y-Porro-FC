@@ -40,6 +40,7 @@ export const useHasVoted = (matchId?: string, voterId?: string) =>
 export interface CastVotesInput {
   matchId: string;
   voterId: string;
+  dni: string;
   mvpVotedId: string;
   goalVotedId: string;
 }
@@ -47,16 +48,13 @@ export interface CastVotesInput {
 export const useCastVotes = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ matchId, voterId, mvpVotedId, goalVotedId }: CastVotesInput) => {
-      const rows = [
-        { match_id: matchId, voter_player_id: voterId, voted_player_id: mvpVotedId, type: "mvp" as VoteType },
-        { match_id: matchId, voter_player_id: voterId, voted_player_id: goalVotedId, type: "goal" as VoteType },
-      ];
-      // UPSERT sobre la constraint única (match_id, voter_player_id, type)
-      // evita pérdida de datos si el insert falla a mitad
-      const { error } = await supabase
-        .from("votes")
-        .upsert(rows, { onConflict: "match_id,voter_player_id,type" });
+    mutationFn: async ({ matchId, dni, mvpVotedId, goalVotedId }: CastVotesInput) => {
+      const { error } = await (supabase as any).rpc("cast_match_votes_with_dni", {
+        p_match_id: matchId,
+        p_dni: dni,
+        p_mvp_voted_id: mvpVotedId,
+        p_goal_voted_id: goalVotedId,
+      });
       if (error) throw error;
     },
     onSuccess: (_, vars) => {

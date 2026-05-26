@@ -21,7 +21,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { PhotoUploader } from "@/components/players/PhotoUploader";
 import { EmptyState } from "@/components/ui/empty-state";
-import { usePlayers, useCreatePlayer, useUpdatePlayer, useDeletePlayer, type Player } from "@/hooks/usePlayers";
+import { usePlayers, useCreatePlayer, useUpdatePlayer, useDeletePlayer, useSetPlayerDni, type Player } from "@/hooks/usePlayers";
 import { useRanking } from "@/hooks/useRanking";
 import { getAchievements } from "@/lib/achievements";
 
@@ -29,7 +29,10 @@ const playerSchema = z.object({
   nombre: z.string().trim().min(2, "Nombre muy corto").max(60),
   apodo: z.string().trim().max(30).optional().or(z.literal("")),
   posicion: z.enum(["arquero", "defensor", "mediocampista", "delantero"]).optional().nullable(),
+  dni: z.string().trim().optional().or(z.literal("")),
 });
+
+const normalizeDni = (value: string) => value.replace(/\D/g, "");
 
 const positionLabels: Record<string, string> = {
   arquero: "Arquero",
@@ -52,6 +55,7 @@ const Jugadores = ({ readOnly = false }: { readOnly?: boolean }) => {
   const { data: ranking = [] } = useRanking();
   const createMut = useCreatePlayer();
   const updateMut = useUpdatePlayer();
+  const setDniMut = useSetPlayerDni();
   const deleteMut = useDeletePlayer();
 
   const [open, setOpen] = useState(false);
@@ -64,6 +68,7 @@ const Jugadores = ({ readOnly = false }: { readOnly?: boolean }) => {
     apodo: "",
     posicion: "" as string,
     foto_url: null as string | null,
+    dni: "",
   });
 
   const statsByPlayer = useMemo(() => {
@@ -80,7 +85,7 @@ const Jugadores = ({ readOnly = false }: { readOnly?: boolean }) => {
 
   const openNew = () => {
     setEditing(null);
-    setForm({ nombre: "", apodo: "", posicion: "", foto_url: null });
+    setForm({ nombre: "", apodo: "", posicion: "", foto_url: null, dni: "" });
     setOpen(true);
   };
 
@@ -91,6 +96,7 @@ const Jugadores = ({ readOnly = false }: { readOnly?: boolean }) => {
       apodo: p.apodo ?? "",
       posicion: p.posicion ?? "",
       foto_url: p.foto_url ?? null,
+      dni: "",
     });
     setOpen(true);
   };
@@ -100,9 +106,19 @@ const Jugadores = ({ readOnly = false }: { readOnly?: boolean }) => {
       nombre: form.nombre,
       apodo: form.apodo,
       posicion: form.posicion ? form.posicion : null,
+      dni: form.dni,
     });
     if (!parsed.success) {
       toast.error(parsed.error.issues[0].message);
+      return;
+    }
+    const normalizedDni = normalizeDni(parsed.data.dni ?? "");
+    if (!editing && (normalizedDni.length < 7 || normalizedDni.length > 9)) {
+      toast.error("Cargá un DNI válido para habilitar la votación.");
+      return;
+    }
+    if (editing && normalizedDni && (normalizedDni.length < 7 || normalizedDni.length > 9)) {
+      toast.error("DNI inválido.");
       return;
     }
     const payload = {
@@ -114,9 +130,13 @@ const Jugadores = ({ readOnly = false }: { readOnly?: boolean }) => {
     try {
       if (editing) {
         await updateMut.mutateAsync({ id: editing.id, ...payload });
+        if (normalizedDni) {
+          await setDniMut.mutateAsync({ playerId: editing.id, dni: normalizedDni });
+        }
         toast.success("Jugador actualizado");
       } else {
-        await createMut.mutateAsync(payload);
+        const created = await createMut.mutateAsync(payload);
+        await setDniMut.mutateAsync({ playerId: created.id, dni: normalizedDni });
         toast.success("Jugador creado");
       }
       setOpen(false);
@@ -315,6 +335,20 @@ const Jugadores = ({ readOnly = false }: { readOnly?: boolean }) => {
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label>DNI {editing ? "" : "*"}</Label>
+                  <Input
+                    value={form.dni}
+                    onChange={(e) => setForm({ ...form, dni: e.target.value })}
+                    placeholder={editing ? "Completar solo para cambiarlo" : "12345678"}
+                    inputMode="numeric"
+                    autoComplete="off"
+                    maxLength={12}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Se usa solo para verificar votantes. No se muestra en la app pública.
+                  </p>
+                </div>
+                <div className="space-y-2">
                   <Label>Posicion</Label>
                   <Select value={form.posicion} onValueChange={(v) => setForm({ ...form, posicion: v })}>
                     <SelectTrigger><SelectValue placeholder="Sin definir" /></SelectTrigger>
@@ -329,7 +363,7 @@ const Jugadores = ({ readOnly = false }: { readOnly?: boolean }) => {
               </div>
               <DialogFooter>
                 <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-                <Button onClick={onSubmit} disabled={createMut.isPending || updateMut.isPending}>
+                <Button onClick={onSubmit} disabled={createMut.isPending || updateMut.isPending || setDniMut.isPending}>
                   {editing ? "Guardar cambios" : "Crear jugador"}
                 </Button>
               </DialogFooter>

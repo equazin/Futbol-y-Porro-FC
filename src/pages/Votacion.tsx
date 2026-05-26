@@ -3,10 +3,13 @@ import { Vote, Star, Goal, Check, ArrowLeft, Sparkles, Users } from "lucide-reac
 import { fmtPartidoSinHora, fmtHora } from "@/lib/dates";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { getVotingDeadline, isVotingOpenForMatch, useMatches, useMatchPlayers } from "@/hooks/useMatches";
 import { useVotes, useHasVoted, useCastVotes } from "@/hooks/useVotes";
+import { useVerifyMatchVoter } from "@/hooks/usePlayers";
 
 type Step = "match" | "identify" | "vote" | "done";
 
@@ -27,6 +30,7 @@ const Votacion = () => {
   const [step, setStep] = useState<Step>("match");
   const [matchId, setMatchId] = useState<string | null>(null);
   const [voterId, setVoterId] = useState<string | null>(null);
+  const [dni, setDni] = useState("");
   const [mvpVote, setMvpVote] = useState<string | null>(null);
   const [goalVote, setGoalVote] = useState<string | null>(null);
 
@@ -34,6 +38,7 @@ const Votacion = () => {
   const { data: votes = [] } = useVotes(matchId ?? undefined);
   const { data: voted } = useHasVoted(matchId ?? undefined, voterId ?? undefined);
   const castMut = useCastVotes();
+  const verifyMut = useVerifyMatchVoter();
   const selectedMatch = matches.find((m) => m.id === matchId);
 
   const winnerTeam = useMemo<"A" | "B" | null>(() => {
@@ -70,12 +75,35 @@ const Votacion = () => {
     if (voted?.mvp && voted?.goal) setStep("done");
   }, [voted]);
 
+  const verifiedVoter = useMemo(
+    () => votablesPresentes.find((p: any) => p.id === voterId),
+    [votablesPresentes, voterId],
+  );
+
   const reset = () => {
     setStep("match");
     setMatchId(null);
     setVoterId(null);
+    setDni("");
     setMvpVote(null);
     setGoalVote(null);
+  };
+
+  const onVerifyDni = async () => {
+    if (!matchId) return;
+    if (!dni.trim()) {
+      toast.error("Ingresá tu DNI para votar.");
+      return;
+    }
+    try {
+      const voter = await verifyMut.mutateAsync({ matchId, dni });
+      setVoterId(voter.id);
+      setMvpVote(null);
+      setGoalVote(null);
+      setStep("vote");
+    } catch (e: any) {
+      toast.error(e.message ?? "No se pudo verificar el DNI.");
+    }
   };
 
   const onSubmit = async () => {
@@ -89,7 +117,7 @@ const Votacion = () => {
       return;
     }
     try {
-      await castMut.mutateAsync({ matchId, voterId, mvpVotedId: mvpVote, goalVotedId: goalVote });
+      await castMut.mutateAsync({ matchId, voterId, dni, mvpVotedId: mvpVote, goalVotedId: goalVote });
       toast.success("Votos registrados");
       setStep("done");
     } catch (e: any) {
@@ -176,7 +204,15 @@ const Votacion = () => {
 
       {step === "identify" && selectedMatch && (
         <div className="space-y-4">
-          <Button variant="ghost" size="sm" onClick={() => setStep("match")}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setStep("match");
+              setDni("");
+              setVoterId(null);
+            }}
+          >
             <ArrowLeft className="h-4 w-4 mr-1" /> Cambiar partido
           </Button>
           <div className="rounded-xl border border-border/60 bg-gradient-card p-4">
@@ -188,7 +224,7 @@ const Votacion = () => {
             </p>
           </div>
           <p className="text-xs uppercase tracking-wider text-muted-foreground font-bold">
-            Quien sos?
+            Verificacion
           </p>
           {votablesPresentes.length === 0 ? (
             <EmptyState
@@ -197,22 +233,28 @@ const Votacion = () => {
               description="Los invitados no participan en la votacion de MVP ni Gol de la fecha."
             />
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {votablesPresentes.map((p: any) => (
-                <button
-                  key={p.id}
-                  onClick={() => {
-                    setVoterId(p.id);
-                    setStep("vote");
+            <div className="rounded-xl border border-border/60 bg-gradient-card p-4 space-y-3">
+              <div className="space-y-2">
+                <Label>DNI</Label>
+                <Input
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  value={dni}
+                  onChange={(e) => setDni(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void onVerifyDni();
                   }}
-                  className="flex flex-col items-center gap-2 p-3 rounded-xl border border-border/40 bg-card/50 hover:border-mvp/40 hover:bg-card transition-smooth"
-                >
-                  <PlayerAvatar nombre={p.nombre} foto_url={p.foto_url} size="lg" />
-                  <p className="font-bold text-sm text-center truncate w-full">
-                    {p.apodo ?? p.nombre}
-                  </p>
-                </button>
-              ))}
+                  placeholder="Ingresá tu DNI"
+                  className="h-12 text-base font-bold"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Solo pueden votar jugadores oficiales presentes en este partido.
+                </p>
+              </div>
+              <Button onClick={onVerifyDni} disabled={verifyMut.isPending} className="w-full">
+                {verifyMut.isPending ? "Verificando..." : "Continuar"}
+              </Button>
             </div>
           )}
         </div>
@@ -220,9 +262,28 @@ const Votacion = () => {
 
       {step === "vote" && voterId && (
         <div className="space-y-5">
-          <Button variant="ghost" size="sm" onClick={() => setStep("identify")}>
-            <ArrowLeft className="h-4 w-4 mr-1" /> No soy yo
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setStep("identify");
+              setVoterId(null);
+              setMvpVote(null);
+              setGoalVote(null);
+            }}
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" /> Cambiar DNI
           </Button>
+
+          {verifiedVoter && (
+            <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-card/50 p-3">
+              <PlayerAvatar nombre={verifiedVoter.nombre} foto_url={verifiedVoter.foto_url} size="sm" />
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground">Votás como</p>
+                <p className="font-black truncate">{verifiedVoter.apodo ?? verifiedVoter.nombre}</p>
+              </div>
+            </div>
+          )}
 
           {voted?.mvp && voted?.goal ? (
             <div className="rounded-xl border border-mvp/30 bg-mvp/10 p-4 text-center">
@@ -285,7 +346,7 @@ const Votacion = () => {
                   </p>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {votablesPresentes.map((p: any) => (
+                    {votablesPresentes.filter((p: any) => p.id !== voterId).map((p: any) => (
                       <button
                         key={p.id}
                         onClick={() => setGoalVote(p.id)}
