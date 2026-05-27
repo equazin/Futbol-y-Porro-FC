@@ -32,6 +32,7 @@ import {
 import { usePlayers, type Player } from "@/hooks/usePlayers";
 import { useDeleteVote, useDeleteVoterVotes, useResetMatchVoting, useVotes, tallyVotes, type Vote as VoteRow } from "@/hooks/useVotes";
 import { FONDO, CALIFICACION_CRITERIOS, formatARS } from "@/lib/scoring";
+import { useAuditLog } from "@/hooks/useAuditLog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Row {
@@ -89,6 +90,7 @@ const MatchStats = () => {
   const deleteVoteMut = useDeleteVote();
   const deleteVoterVotesMut = useDeleteVoterVotes();
   const resetVotingMut = useResetMatchVoting();
+  const { log } = useAuditLog();
 
   const [rows, setRows] = useState<Record<string, Row>>({});
   const [scoreA, setScoreA] = useState(0);
@@ -317,9 +319,11 @@ const MatchStats = () => {
         setEstado(nextEstado);
         setScoreA(nextScoreA);
         setScoreB(nextScoreB);
+        void log("partido_estado_cambiado", "matches", id, { estado_anterior: estado, estado_nuevo: nextEstado, score_a: nextScoreA, score_b: nextScoreB });
         if (hasScoreForElo) toast.success("ELO actualizado");
         toast.success("Stats guardadas · Partido marcado como jugado");
       } else {
+        void log("partido_editado", "matches", id, { accion: "stats_guardadas", jugadores: payload.length });
         toast.success("Stats guardadas");
       }
     } catch (e: any) {
@@ -349,6 +353,7 @@ const MatchStats = () => {
         toast.error("La base esta guardando solo la fecha y descarta la hora. Ejecuta el SQL fix-match-fecha-timestamptz antes de volver a guardar.");
         return;
       }
+      void log("partido_editado", "matches", id, { fecha: fechaIso, score_a: scoreA, score_b: scoreB, estado, mvp_id: mvpId, gol_fecha_id: golFechaId });
       toast.success(estado === "pendiente" ? "Partido guardado" : "Partido guardado · ELO actualizado");
     } catch (e: any) {
       if (e?.code === "23505" && e?.message?.includes("matches_fecha_key")) {
@@ -376,6 +381,7 @@ const MatchStats = () => {
         toast.error("La base esta guardando solo la fecha y descarta la hora. Ejecuta el SQL fix-match-fecha-timestamptz antes de volver a guardar.");
         return;
       }
+      void log("partido_editado", "matches", id, { accion: "fecha_actualizada", fecha: fechaIso });
       toast.success("Fecha actualizada");
     } catch (e: any) {
       if (e?.code === "23505" && e?.message?.includes("matches_fecha_key")) {
@@ -392,6 +398,7 @@ const MatchStats = () => {
       const result = await closeMut.mutateAsync(id);
       const mvp = players.find((p) => p.id === result.mvp);
       const gol = players.find((p) => p.id === result.gol);
+      void log("votacion_cerrada", "matches", id, { mvp_id: result.mvp, gol_id: result.gol, total_votos: result.totalVotes });
       toast.success(`Votacion cerrada · MVP: ${mvp?.apodo ?? mvp?.nombre ?? "-"} · Gol: ${gol?.apodo ?? gol?.nombre ?? "-"}`);
       setConfirmClose(false);
     } catch (e: any) {
@@ -404,14 +411,17 @@ const MatchStats = () => {
     try {
       if (voteConfirmAction.kind === "vote") {
         await deleteVoteMut.mutateAsync({ matchId: id, voteId: voteConfirmAction.voteId });
+        void log("voto_eliminado", "votes", voteConfirmAction.voteId, { match_id: id, label: voteConfirmAction.label });
         toast.success("Voto anulado");
       }
       if (voteConfirmAction.kind === "voter") {
         await deleteVoterVotesMut.mutateAsync({ matchId: id, voterId: voteConfirmAction.voterId });
+        void log("votos_votante_eliminados", "votes", voteConfirmAction.voterId, { match_id: id, label: voteConfirmAction.label });
         toast.success("Votos del jugador anulados");
       }
       if (voteConfirmAction.kind === "reset") {
         await resetVotingMut.mutateAsync(id);
+        void log("votacion_reseteada", "matches", id, {});
         setEstado("jugado");
         setMvpId("none");
         setGolFechaId("none");

@@ -13,6 +13,7 @@ import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { usePlayers } from "@/hooks/usePlayers";
 import { useFines, useCreateFine, useToggleFinePaid, useDeleteFine } from "@/hooks/useFines";
 import { useFinePresets } from "@/hooks/useFinePresets";
+import { useAuditLog } from "@/hooks/useAuditLog";
 import { formatARS } from "@/lib/scoring";
 
 const Multas = ({ readOnly = false }: { readOnly?: boolean }) => {
@@ -22,6 +23,7 @@ const Multas = ({ readOnly = false }: { readOnly?: boolean }) => {
   const createMut = useCreateFine();
   const toggleMut = useToggleFinePaid();
   const deleteMut = useDeleteFine();
+  const { log } = useAuditLog();
 
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
@@ -46,11 +48,12 @@ const Multas = ({ readOnly = false }: { readOnly?: boolean }) => {
       return;
     }
     try {
-      await createMut.mutateAsync({
+      const created = await createMut.mutateAsync({
         player_id: form.player_id,
         motivo: form.motivo.trim().slice(0, 200),
         monto: Math.max(0, form.monto),
       });
+      void log("multa_creada", "fines", (created as any)?.id, { player_id: form.player_id, motivo: form.motivo, monto: form.monto });
       toast.success("Multa registrada");
       setOpen(false);
       setForm({ player_id: "", motivo: "", monto: presets[0]?.monto_default ?? 500 });
@@ -115,7 +118,13 @@ const Multas = ({ readOnly = false }: { readOnly?: boolean }) => {
               <Checkbox
                 checked={f.pagada}
                 disabled={readOnly}
-                onCheckedChange={(v) => !readOnly && toggleMut.mutate({ id: f.id, pagada: !!v })}
+                onCheckedChange={(v) => {
+                  if (readOnly) return;
+                  const pagada = !!v;
+                  toggleMut.mutate({ id: f.id, pagada }, {
+                    onSuccess: () => void log("multa_pago_actualizado", "fines", f.id, { player_id: f.player_id, pagada }),
+                  });
+                }}
               />
               <PlayerAvatar nombre={f.player?.nombre ?? "?"} foto_url={f.player?.foto_url ?? null} size="sm" />
               <div className="flex-1 min-w-0">
@@ -134,7 +143,9 @@ const Multas = ({ readOnly = false }: { readOnly?: boolean }) => {
                   variant="ghost"
                   size="icon"
                   className="text-destructive hover:bg-destructive/10 h-8 w-8"
-                  onClick={() => deleteMut.mutate(f.id)}
+                  onClick={() => deleteMut.mutate(f.id, {
+                    onSuccess: () => void log("multa_eliminada", "fines", f.id, { player_id: f.player_id, motivo: f.motivo, monto: f.monto }),
+                  })}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>

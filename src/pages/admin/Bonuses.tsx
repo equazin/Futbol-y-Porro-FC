@@ -19,6 +19,7 @@ import {
   useUpsertPanelWins,
   useDeletePanelWins,
 } from "@/hooks/usePlayerBonuses";
+import { useAuditLog } from "@/hooks/useAuditLog";
 
 const Bonuses = () => {
   const { data: players = [] } = usePlayers(false);
@@ -29,6 +30,7 @@ const Bonuses = () => {
   const deleteBonus = useDeletePlayerBonus();
   const upsertWins = useUpsertPanelWins();
   const deleteWins = useDeletePanelWins();
+  const { log } = useAuditLog();
 
   const [bonusOpen, setBonusOpen] = useState(false);
   const [winsOpen, setWinsOpen] = useState(false);
@@ -41,11 +43,12 @@ const Bonuses = () => {
     if (!bonusForm.motivo.trim()) { toast.error("Indicá un motivo"); return; }
     if (bonusForm.puntos === 0) { toast.error("Los puntos no pueden ser 0"); return; }
     try {
-      await createBonus.mutateAsync({
+      const bonus = await createBonus.mutateAsync({
         player_id: bonusForm.player_id,
         motivo: bonusForm.motivo.trim(),
         puntos: bonusForm.puntos,
       });
+      void log("bonus_creado", "player_bonuses", bonus.id, { player_id: bonusForm.player_id, motivo: bonusForm.motivo, puntos: bonusForm.puntos });
       toast.success("Bonus registrado");
       setBonusOpen(false);
       setBonusForm({ player_id: "", motivo: "", puntos: 0 });
@@ -58,11 +61,12 @@ const Bonuses = () => {
     if (!winsForm.player_id) { toast.error("Elegí un jugador"); return; }
     if (winsForm.wins_historicas < 0) { toast.error("Las victorias no pueden ser negativas"); return; }
     try {
-      await upsertWins.mutateAsync({
+      const wins = await upsertWins.mutateAsync({
         player_id: winsForm.player_id,
         wins_historicas: winsForm.wins_historicas,
         motivo: winsForm.motivo.trim() || "Victorias previas al sistema",
       });
+      void log("victoria_historica_creada", "player_panel_wins", (wins as any)?.id, { player_id: winsForm.player_id, wins_historicas: winsForm.wins_historicas, motivo: winsForm.motivo });
       toast.success("Victorias históricas guardadas");
       setWinsOpen(false);
       setWinsForm({ player_id: "", wins_historicas: 0, motivo: "Victorias previas al sistema" });
@@ -121,7 +125,9 @@ const Bonuses = () => {
                     variant="ghost"
                     size="icon"
                     className="text-destructive hover:bg-destructive/10 h-8 w-8"
-                    onClick={() => deleteBonus.mutate(b.id)}
+                    onClick={() => deleteBonus.mutate(b.id, {
+                      onSuccess: () => void log("bonus_eliminado", "player_bonuses", b.id, { player_id: b.player_id, motivo: b.motivo, puntos: b.puntos }),
+                    })}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -165,7 +171,9 @@ const Bonuses = () => {
                     variant="ghost"
                     size="icon"
                     className="text-destructive hover:bg-destructive/10 h-8 w-8"
-                    onClick={() => deleteWins.mutate(pw.id)}
+                    onClick={() => deleteWins.mutate(pw.id, {
+                      onSuccess: () => void log("victoria_historica_eliminada", "player_panel_wins", pw.id, { player_id: pw.player_id, wins_historicas: pw.wins_historicas }),
+                    })}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

@@ -24,6 +24,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { usePlayers, useCreatePlayer, useUpdatePlayer, useDeletePlayer, useSetPlayerDni, type Player } from "@/hooks/usePlayers";
 import { useRanking } from "@/hooks/useRanking";
 import { getAchievements } from "@/lib/achievements";
+import { useAuditLog } from "@/hooks/useAuditLog";
 
 const playerSchema = z.object({
   nombre: z.string().trim().min(2, "Nombre muy corto").max(60),
@@ -57,6 +58,7 @@ const Jugadores = ({ readOnly = false }: { readOnly?: boolean }) => {
   const updateMut = useUpdatePlayer();
   const setDniMut = useSetPlayerDni();
   const deleteMut = useDeletePlayer();
+  const { log } = useAuditLog();
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Player | null>(null);
@@ -133,10 +135,12 @@ const Jugadores = ({ readOnly = false }: { readOnly?: boolean }) => {
         if (normalizedDni) {
           await setDniMut.mutateAsync({ playerId: editing.id, dni: normalizedDni });
         }
+        void log("jugador_editado", "players", editing.id, { nombre: payload.nombre, apodo: payload.apodo, posicion: payload.posicion });
         toast.success("Jugador actualizado");
       } else {
         const created = await createMut.mutateAsync(payload);
         await setDniMut.mutateAsync({ playerId: created.id, dni: normalizedDni });
+        void log("jugador_creado", "players", created.id, { nombre: payload.nombre, apodo: payload.apodo, posicion: payload.posicion });
         toast.success("Jugador creado");
       }
       setOpen(false);
@@ -149,6 +153,7 @@ const Jugadores = ({ readOnly = false }: { readOnly?: boolean }) => {
     if (!confirmDelete) return;
     try {
       await deleteMut.mutateAsync(confirmDelete.id);
+      void log("jugador_desactivado", "players", confirmDelete.id, { nombre: confirmDelete.nombre, apodo: confirmDelete.apodo });
       toast.success("Jugador dado de baja");
       setConfirmDelete(null);
     } catch (e: any) {
@@ -159,6 +164,7 @@ const Jugadores = ({ readOnly = false }: { readOnly?: boolean }) => {
   const onPromote = async (p: Player) => {
     try {
       await updateMut.mutateAsync({ id: p.id, tipo: "titular" });
+      void log("jugador_editado", "players", p.id, { accion: "promovido_a_titular", nombre: p.nombre });
       toast.success(`${p.apodo ?? p.nombre} promovido al plantel`);
     } catch (e: any) {
       toast.error(e.message ?? "Error al promover");

@@ -25,6 +25,7 @@ import Bonuses from "./pages/admin/Bonuses";
 import Finanzas from "./pages/admin/Finanzas";
 import FinePresets from "./pages/admin/FinePresets";
 import Venues from "./pages/admin/Venues";
+import Historial from "./pages/admin/Historial";
 import NotFound from "./pages/NotFound";
 import { useAutoCloseExpiredVoting } from "@/hooks/useMatches";
 
@@ -69,6 +70,7 @@ const AppShell = () => {
                 <Route path="/admin/finanzas" element={<Finanzas />} />
                 <Route path="/admin/fine-presets" element={<FinePresets />} />
                 <Route path="/admin/canchas" element={<Venues />} />
+                <Route path="/historial" element={<Historial />} />
               </Route>
             </Route>
 

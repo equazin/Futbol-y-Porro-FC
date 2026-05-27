@@ -4,6 +4,7 @@ import { fmtPartidoConAño } from "@/lib/dates";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuditLog } from "@/hooks/useAuditLog";
 import { StatCard } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -58,6 +59,7 @@ type FundMovement = {
 
 const Fondo = ({ readOnly = false }: { readOnly?: boolean }) => {
   const qc = useQueryClient();
+  const { log } = useAuditLog();
   const [filter, setFilter] = useState<"all" | "pending" | "paid">("all");
   const [movementOpen, setMovementOpen] = useState(false);
   const [movementTipo, setMovementTipo] = useState<"ingreso" | "egreso">("egreso");
@@ -101,32 +103,26 @@ const Fondo = ({ readOnly = false }: { readOnly?: boolean }) => {
     mutationFn: async ({ id, pagado }: { id: string; pagado: boolean }) => {
       const { error } = await supabase.from("contributions").update({ pagado }).eq("id", id);
       if (error) throw error;
+      return { id, pagado };
     },
-    onSuccess: () => {
+    onSuccess: ({ id, pagado }) => {
       qc.invalidateQueries({ queryKey: ["contributions_full"] });
       qc.invalidateQueries({ queryKey: ["fondo"] });
+      void log("aporte_pago_actualizado", "contributions", id, { pagado });
     },
     onError: (e: any) => toast.error(e.message),
   });
 
   const createMovement = useMutation({
-    mutationFn: async () => {
-      const monto = Math.round(Number(movementMonto));
-      const motivo = movementMotivo.trim();
-      if (!monto || monto <= 0) throw new Error("Ingresa un monto valido");
-      if (!motivo) throw new Error("Ingresa un motivo");
-
-      const { error } = await (supabase as any).from("fund_movements").insert({
-        tipo: movementTipo,
-        monto,
-        motivo,
-        fecha: new Date(`${movementFecha}T12:00:00`).toISOString(),
-      });
+    mutationFn: async ({ tipo, monto, motivo, fecha }: { tipo: "ingreso" | "egreso"; monto: number; motivo: string; fecha: string }) => {
+      const { error } = await (supabase as any).from("fund_movements").insert({ tipo, monto, motivo, fecha });
       if (error) throw error;
+      return { tipo, monto, motivo };
     },
-    onSuccess: () => {
+    onSuccess: ({ tipo, monto, motivo }) => {
       qc.invalidateQueries({ queryKey: ["fund_movements"] });
       qc.invalidateQueries({ queryKey: ["fondo"] });
+      void log("aporte_pago_actualizado", "fund_movements", undefined, { tipo, monto, motivo });
       toast.success("Movimiento registrado");
       setMovementOpen(false);
       setMovementTipo("egreso");
@@ -153,17 +149,20 @@ const Fondo = ({ readOnly = false }: { readOnly?: boolean }) => {
       if (delta === 0) throw new Error("La caja ya tiene ese monto");
 
       const motivo = adjustMotivo.trim() || `Ajuste manual de caja a ${formatARS(target)}`;
+      const tipo = delta > 0 ? "ingreso" : "egreso";
       const { error } = await (supabase as any).from("fund_movements").insert({
-        tipo: delta > 0 ? "ingreso" : "egreso",
+        tipo,
         monto: Math.abs(delta),
         motivo,
         fecha: new Date().toISOString(),
       });
       if (error) throw error;
+      return { tipo, delta: Math.abs(delta), motivo };
     },
-    onSuccess: () => {
+    onSuccess: ({ tipo, delta, motivo }) => {
       qc.invalidateQueries({ queryKey: ["fund_movements"] });
       qc.invalidateQueries({ queryKey: ["fondo"] });
+      void log("aporte_pago_actualizado", "fund_movements", undefined, { accion: "ajuste_caja", tipo, delta, motivo });
       toast.success("Caja ajustada");
       setAdjustOpen(false);
       setAdjustTarget("");
@@ -176,10 +175,12 @@ const Fondo = ({ readOnly = false }: { readOnly?: boolean }) => {
     mutationFn: async (id: string) => {
       const { error } = await (supabase as any).from("fund_movements").delete().eq("id", id);
       if (error) throw error;
+      return id;
     },
-    onSuccess: () => {
+    onSuccess: (id) => {
       qc.invalidateQueries({ queryKey: ["fund_movements"] });
       qc.invalidateQueries({ queryKey: ["fondo"] });
+      void log("aporte_pago_actualizado", "fund_movements", id, { accion: "movimiento_eliminado" });
       toast.success("Movimiento eliminado");
     },
     onError: (e: any) => toast.error(e.message),
@@ -498,7 +499,13 @@ const Fondo = ({ readOnly = false }: { readOnly?: boolean }) => {
               <Button variant="ghost" onClick={() => setMovementOpen(false)}>
                 Cancelar
               </Button>
-              <Button onClick={() => createMovement.mutate()} disabled={createMovement.isPending}>
+              <Button onClick={() => {
+                const monto = Math.round(Number(movementMonto));
+                const motivo = movementMotivo.trim();
+                if (!monto || monto <= 0) { toast.error("Ingresa un monto valido"); return; }
+                if (!motivo) { toast.error("Ingresa un motivo"); return; }
+                createMovement.mutate({ tipo: movementTipo, monto, motivo, fecha: new Date(`${movementFecha}T12:00:00`).toISOString() });
+              }} disabled={createMovement.isPending}>
                 Registrar movimiento
               </Button>
             </DialogFooter>
