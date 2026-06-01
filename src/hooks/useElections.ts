@@ -80,7 +80,7 @@ export const useCandidates = (electionId: string | null) =>
     queryFn: async () => {
       const { data, error } = await supabase
         .from("candidates")
-        .select(`*, players (id, nombre, apodo, foto_url)`)
+        .select(`*, players!candidates_player_id_fkey (id, nombre, apodo, foto_url)`)
         .eq("election_id", electionId!)
         .order("created_at", { ascending: true });
       if (error) throw error;
