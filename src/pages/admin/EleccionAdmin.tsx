@@ -33,52 +33,41 @@ const PROPOSAL_TOPICS = [
   { key: "propuesta_foules", label: "¿Política frente a los foules?" },
 ] as const;
 
-// ─── Status helpers ────────────────────────────────────────────────────────────
-
 const STATUS_LABEL: Record<Election["estado"], string> = {
-  postulacion: "📋 Postulaciones",
-  votacion: "🗳️ Votación",
+  postulacion: "📋 Postulaciones abiertas",
+  votacion: "🗳️ Votación en curso",
   segunda_vuelta: "🔄 Segunda vuelta",
   cerrada: "✅ Cerrada",
 };
 
-// ─── Candidate detail row ──────────────────────────────────────────────────────
-
-function CandidateRow({
-  candidate,
-  votos,
-}: {
-  candidate: CandidateWithPlayer;
-  votos: number;
-}) {
+function CandidateRow({ candidate, votos }: { candidate: CandidateWithPlayer; votos: number }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className={`border rounded-lg p-3 space-y-2 ${candidate.eliminado ? "opacity-50 bg-zinc-50" : "bg-white"}`}>
+    <div className={`border border-border rounded-lg p-3 space-y-2 bg-card ${candidate.eliminado ? "opacity-50" : ""}`}>
       <div className="flex items-center gap-3">
         <PlayerAvatar
           nombre={candidate.players.nombre}
-          apodo={candidate.players.apodo}
           foto_url={candidate.players.foto_url}
           size="sm"
         />
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm truncate">
+          <p className="font-semibold text-sm text-foreground truncate">
             {candidate.players.apodo ?? candidate.players.nombre}
           </p>
-          <p className="text-xs text-zinc-500 truncate">{candidate.partido_politico}</p>
+          <p className="text-xs text-muted-foreground truncate">{candidate.partido_politico}</p>
         </div>
         <div className="text-right shrink-0">
-          <span className="font-bold">{votos}</span>
-          <span className="text-xs text-zinc-400 ml-1">votos</span>
+          <span className="font-bold text-foreground">{votos}</span>
+          <span className="text-xs text-muted-foreground ml-1">votos</span>
         </div>
         {candidate.eliminado && (
-          <span className="text-xs text-red-500 font-medium">Eliminado</span>
+          <span className="text-xs text-destructive font-medium">Eliminado</span>
         )}
       </div>
 
       <button
-        className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-600"
+        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
         onClick={() => setExpanded((e) => !e)}
       >
         {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
@@ -86,13 +75,13 @@ function CandidateRow({
       </button>
 
       {expanded && (
-        <div className="space-y-2 border-t pt-2 text-xs text-zinc-600">
+        <div className="space-y-2 border-t border-border pt-2 text-xs text-muted-foreground">
           {PROPOSAL_TOPICS.map((t) => {
             const val = candidate[t.key as keyof CandidateWithPlayer] as string;
             if (!val) return null;
             return (
               <div key={t.key}>
-                <p className="font-medium text-zinc-700">{t.label}</p>
+                <p className="font-medium text-foreground">{t.label}</p>
                 <p className="whitespace-pre-wrap">{val}</p>
               </div>
             );
@@ -102,8 +91,6 @@ function CandidateRow({
     </div>
   );
 }
-
-// ─── Election detail panel ─────────────────────────────────────────────────────
 
 function ElectionPanel({ election }: { election: Election }) {
   const { data: candidates = [] } = useCandidates(election.id);
@@ -115,11 +102,8 @@ function ElectionPanel({ election }: { election: Election }) {
 
   async function handleOpenVoting() {
     const result = await openVotingMut.mutateAsync({ election_id: election.id });
-    if (result.status === "ok") {
-      toast.success("Votación abierta");
-    } else {
-      toast.error(result.status);
-    }
+    if (result.status === "ok") toast.success("Votación abierta");
+    else toast.error(result.status);
   }
 
   async function handleClose() {
@@ -131,47 +115,34 @@ function ElectionPanel({ election }: { election: Election }) {
       not_in_voting_state: "La elección no está en estado de votación",
       election_not_found: "Elección no encontrada",
     };
-    if (result.status === "closed" || result.status === "segunda_vuelta") {
+    if (result.status === "closed" || result.status === "segunda_vuelta")
       toast.success(messages[result.status]);
-    } else {
-      toast.error(messages[result.status] ?? result.status);
-    }
+    else toast.error(messages[result.status] ?? result.status);
   }
 
   const totalVotes = Object.values(voteCounts as VoteCounts).reduce((a, b) => a + b, 0);
-
-  // Sorted candidates by votes desc
   const sorted = [...candidates].sort(
     (a, b) => ((voteCounts as VoteCounts)[b.id] ?? 0) - ((voteCounts as VoteCounts)[a.id] ?? 0)
   );
 
   return (
-    <div className="border rounded-xl p-5 space-y-4 bg-white shadow-sm">
+    <div className="rounded-2xl border border-primary/30 bg-gradient-card p-5 shadow-card space-y-4">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="space-y-1">
-          <h2 className="font-bold text-lg text-zinc-900">{election.titulo}</h2>
-          <span className="inline-flex text-sm px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600">
+          <h2 className="font-bold text-lg text-foreground">{election.titulo}</h2>
+          <span className="inline-flex text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">
             {STATUS_LABEL[election.estado]}
           </span>
         </div>
         <div className="flex gap-2 flex-wrap">
           {election.estado === "postulacion" && (
-            <Button
-              size="sm"
-              onClick={handleOpenVoting}
-              disabled={openVotingMut.isPending}
-            >
+            <Button size="sm" onClick={handleOpenVoting} disabled={openVotingMut.isPending}>
               <Vote size={14} className="mr-1" />
               Abrir votación
             </Button>
           )}
           {(election.estado === "votacion" || election.estado === "segunda_vuelta") && (
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={handleClose}
-              disabled={closeMut.isPending}
-            >
+            <Button size="sm" variant="destructive" onClick={handleClose} disabled={closeMut.isPending}>
               <Check size={14} className="mr-1" />
               Cerrar y calcular ganador
             </Button>
@@ -179,35 +150,32 @@ function ElectionPanel({ election }: { election: Election }) {
         </div>
       </div>
 
-      {/* Paso argentino explanation */}
       {(election.estado === "votacion" || election.estado === "segunda_vuelta") && (
-        <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-700 flex gap-2">
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-400 flex gap-2">
           <AlertTriangle size={16} className="shrink-0 mt-0.5" />
           <div>
             <p className="font-medium">Reglas de cierre</p>
-            <ul className="mt-1 space-y-0.5 text-xs">
-              <li>• Si el 1er candidato tiene 3+ votos de ventaja sobre el 2do → gana directamente.</li>
-              <li>• Si no → se eliminan todos excepto los 3 más votados (paso argentino) y se abre segunda vuelta.</li>
+            <ul className="mt-1 space-y-0.5 text-xs opacity-90">
+              <li>• Si el 1er candidato tiene 3+ votos de ventaja → gana directamente.</li>
+              <li>• Si no → quedan los 3 más votados (paso argentino) y se abre segunda vuelta.</li>
               <li>• En segunda vuelta → gana el más votado sin importar diferencia.</li>
             </ul>
           </div>
         </div>
       )}
 
-      {/* Vote counts summary */}
       {totalVotes > 0 && (
-        <p className="text-sm text-zinc-500">
-          Total de votos registrados (ronda {currentRound}): <strong>{totalVotes}</strong>
+        <p className="text-sm text-muted-foreground">
+          Total votos ronda {currentRound}: <strong className="text-foreground">{totalVotes}</strong>
         </p>
       )}
 
-      {/* Candidates */}
       <div className="space-y-2">
-        <p className="text-sm font-medium text-zinc-600">
+        <p className="text-sm font-medium text-muted-foreground">
           Candidatos ({candidates.length})
         </p>
         {sorted.length === 0 ? (
-          <p className="text-sm text-zinc-400">Todavía no hay postulados.</p>
+          <p className="text-sm text-muted-foreground">Todavía no hay postulados.</p>
         ) : (
           sorted.map((c) => (
             <CandidateRow
@@ -219,8 +187,7 @@ function ElectionPanel({ election }: { election: Election }) {
         )}
       </div>
 
-      {/* Timestamps */}
-      <div className="text-xs text-zinc-400 space-y-0.5 border-t pt-3">
+      <div className="text-xs text-muted-foreground space-y-0.5 border-t border-border pt-3">
         <p>Postulaciones: {new Date(election.postulacion_abre).toLocaleString("es-AR")} → {new Date(election.postulacion_cierra).toLocaleString("es-AR")}</p>
         {election.votacion_abre && (
           <p>Votación: {new Date(election.votacion_abre).toLocaleString("es-AR")} → {election.votacion_cierra ? new Date(election.votacion_cierra).toLocaleString("es-AR") : "—"}</p>
@@ -229,8 +196,6 @@ function ElectionPanel({ election }: { election: Election }) {
     </div>
   );
 }
-
-// ─── Main page ─────────────────────────────────────────────────────────────────
 
 const EleccionAdmin = () => {
   const { data: elections = [], isLoading } = useElections();
@@ -263,7 +228,7 @@ const EleccionAdmin = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-64">
-        <div className="w-8 h-8 rounded-full border-2 border-green-500 border-t-transparent animate-spin" />
+        <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
       </div>
     );
   }
@@ -273,7 +238,7 @@ const EleccionAdmin = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Crown className="text-amber-500 w-6 h-6" />
-          <h1 className="text-xl font-bold text-zinc-900">Elecciones</h1>
+          <h1 className="text-xl font-bold text-foreground">Elecciones</h1>
         </div>
         <Button size="sm" onClick={() => setShowForm((s) => !s)}>
           <Plus size={14} className="mr-1" />
@@ -282,8 +247,8 @@ const EleccionAdmin = () => {
       </div>
 
       {showForm && (
-        <div className="border rounded-xl p-5 space-y-4 bg-white shadow-sm">
-          <h2 className="font-semibold text-zinc-800">Nueva elección</h2>
+        <div className="rounded-2xl border border-primary/30 bg-gradient-card p-5 shadow-card space-y-4">
+          <h2 className="font-semibold text-foreground">Nueva elección</h2>
           <div className="space-y-2">
             <Label htmlFor="titulo">Título</Label>
             <Input
@@ -301,16 +266,12 @@ const EleccionAdmin = () => {
               value={postulacionAbre}
               onChange={(e) => setPostulacionAbre(e.target.value)}
             />
-            <p className="text-xs text-zinc-400">
+            <p className="text-xs text-muted-foreground">
               Las postulaciones cierran automáticamente 24hs después.
             </p>
           </div>
           <div className="flex gap-2">
-            <Button
-              onClick={handleCreate}
-              disabled={createMut.isPending}
-              className="flex-1"
-            >
+            <Button onClick={handleCreate} disabled={createMut.isPending} className="flex-1">
               {createMut.isPending ? "Creando..." : "Crear elección"}
             </Button>
             <Button variant="outline" onClick={() => setShowForm(false)}>
@@ -321,7 +282,7 @@ const EleccionAdmin = () => {
       )}
 
       {elections.length === 0 ? (
-        <p className="text-sm text-zinc-400">No hay elecciones todavía.</p>
+        <p className="text-sm text-muted-foreground">No hay elecciones todavía.</p>
       ) : (
         <div className="space-y-4">
           {elections.map((e) => (
