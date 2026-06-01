@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "deploy": "vite build && gh-pages -d docs --nojekyll",
+    "deploy": "vite build && git add docs/ && git commit -m \"chore: deploy\" && git push",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
