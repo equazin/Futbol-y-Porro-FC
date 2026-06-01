@@ -106,8 +106,8 @@ function CandidateCard({
           <img
             src={candidate.flyer_url}
             alt={`Flyer de ${candidate.partido_politico}`}
-            className="w-full object-cover block"
-            style={{ aspectRatio: "3/4", maxHeight: "480px", objectPosition: "top" }}
+            className="w-full block"
+            style={{ display: "block" }}
           />
           {/* Overlay con votos si hay alguno */}
           {votos > 0 && (
