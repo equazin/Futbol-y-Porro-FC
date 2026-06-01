@@ -35,10 +35,17 @@ $$;
 
 create or replace function public.hash_dni(input text)
 returns text
-language sql
+language plpgsql
 immutable
+set search_path = public, extensions, pg_temp
 as $$
-  select encode(digest(public.normalize_dni(input), 'sha256'), 'hex');
+declare
+  result text;
+begin
+  select encode(digest(public.normalize_dni(input)::bytea, 'sha256'::text), 'hex')
+    into result;
+  return result;
+end;
 $$;
 
 create or replace function public.set_player_dni(p_player_id uuid, p_dni text)

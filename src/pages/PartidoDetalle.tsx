@@ -238,6 +238,14 @@ const PartidoDetalle = ({ backPath = "/admin/partidos", readOnly = false }: { ba
   const mvpTally = useMemo(() => tallyVotes(votes, "mvp"), [votes]);
   const goalTally = useMemo(() => tallyVotes(votes, "goal"), [votes]);
   const totalVoters = useMemo(() => new Set(votes.map((v) => v.voter_player_id)).size, [votes]);
+  const eligibleVoters = useMemo(() => {
+    return presentes.filter((r) => {
+      const p = players.find((pl) => pl.id === r.player_id);
+      return p && (p.tipo ?? "titular") !== "invitado";
+    }).length;
+  }, [presentes, players]);
+  const remainingVoters = Math.max(eligibleVoters - totalVoters, 0);
+  const votingClosed = estado === "cerrado";
 
   if (loadingM || !match) {
     return <p className="text-muted-foreground">Cargando partido...</p>;
@@ -539,13 +547,38 @@ const PartidoDetalle = ({ backPath = "/admin/partidos", readOnly = false }: { ba
               </span>
             </div>
 
-            {votes.length === 0 ? (
+            {!votingClosed ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg border border-border/40 bg-card/50 p-3 text-center">
+                    <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">
+                      Votos emitidos
+                    </p>
+                    <p className="text-2xl font-black text-mvp mt-1">{totalVoters}</p>
+                  </div>
+                  <div className="rounded-lg border border-border/40 bg-card/50 p-3 text-center">
+                    <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">
+                      Faltan votar
+                    </p>
+                    <p className="text-2xl font-black text-stats mt-1">{remainingVoters}</p>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground text-center">
+                  Los resultados se ocultan hasta que la votacion este cerrada.
+                  {votes.length === 0 && (
+                    <>
+                      {" "}Compartí{" "}
+                      <Link to="/votacion" className="text-mvp underline">
+                        /votacion
+                      </Link>{" "}
+                      con el grupo.
+                    </>
+                  )}
+                </p>
+              </div>
+            ) : votes.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-3">
-                Aun no hay votos. Comparte el link de{" "}
-                <Link to="/votacion" className="text-mvp underline">
-                  /votacion
-                </Link>{" "}
-                con el grupo.
+                No se registraron votos para este partido.
               </p>
             ) : (
               <div className="grid sm:grid-cols-2 gap-4">
