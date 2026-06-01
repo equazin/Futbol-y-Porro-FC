@@ -225,6 +225,57 @@ export const useRegisterCandidate = () => {
   });
 };
 
+export type UpdateCandidateInput = {
+  candidate_id: string;
+  election_id: string;
+  dni: string;
+  partido: string;
+  propuesta_organizacion?: string;
+  propuesta_votacion_premios?: string;
+  propuesta_economia?: string;
+  propuesta_convivencia?: string;
+  propuesta_tercer_tiempo?: string;
+  propuesta_infraestructura?: string;
+  propuesta_constitucion?: string;
+  propuesta_domingos?: string;
+  propuesta_ausencias?: string;
+  propuesta_equipos?: string;
+  propuesta_presupuesto?: string;
+  propuesta_convivencia2?: string;
+  propuesta_foules?: string;
+};
+
+export const useUpdateCandidate = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: UpdateCandidateInput) => {
+      const { data, error } = await supabase.rpc("update_candidate_by_dni", {
+        p_candidate_id: input.candidate_id,
+        p_dni: input.dni,
+        p_partido: input.partido,
+        p_propuesta_organizacion: input.propuesta_organizacion ?? "",
+        p_propuesta_votacion_premios: input.propuesta_votacion_premios ?? "",
+        p_propuesta_economia: input.propuesta_economia ?? "",
+        p_propuesta_convivencia: input.propuesta_convivencia ?? "",
+        p_propuesta_tercer_tiempo: input.propuesta_tercer_tiempo ?? "",
+        p_propuesta_infraestructura: input.propuesta_infraestructura ?? "",
+        p_propuesta_constitucion: input.propuesta_constitucion ?? "",
+        p_propuesta_domingos: input.propuesta_domingos ?? "",
+        p_propuesta_ausencias: input.propuesta_ausencias ?? "",
+        p_propuesta_equipos: input.propuesta_equipos ?? "",
+        p_propuesta_presupuesto: input.propuesta_presupuesto ?? "",
+        p_propuesta_convivencia2: input.propuesta_convivencia2 ?? "",
+        p_propuesta_foules: input.propuesta_foules ?? "",
+      });
+      if (error) throw error;
+      return data as { status: string };
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["candidates", vars.election_id] });
+    },
+  });
+};
+
 export const useCastElectionVote = () => {
   const qc = useQueryClient();
   return useMutation({

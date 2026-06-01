@@ -25,12 +25,13 @@ import {
   useHasVotedElection,
   useRegisterCandidate,
   useCastElectionVote,
+  useUpdateCandidate,
   type CandidateWithPlayer,
   type Election,
   type VoteCounts,
 } from "@/hooks/useElections";
 
-type Step = "overview" | "postular" | "identify" | "vote" | "done";
+type Step = "overview" | "postular" | "identify" | "vote" | "done" | "editIdentify" | "edit";
 
 const PROPOSAL_TOPICS = [
   { key: "propuesta_organizacion", label: "⚽ Organización de los partidos" },
@@ -83,12 +84,14 @@ function CandidateCard({
   selected,
   onSelect,
   showVoteButton,
+  onEdit,
 }: {
   candidate: CandidateWithPlayer;
   votos: number;
   selected: boolean;
   onSelect?: () => void;
   showVoteButton: boolean;
+  onEdit?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const presName = candidate.players.apodo ?? candidate.players.nombre;
@@ -214,6 +217,17 @@ function CandidateCard({
             {selected ? <><Check size={14} className="mr-1" /> Seleccionado</> : "Votar a este partido"}
           </Button>
         )}
+
+        {onEdit && !candidate.eliminado && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full text-muted-foreground hover:text-foreground"
+            onClick={onEdit}
+          >
+            ✏️ Editar candidatura (con DNI)
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -248,11 +262,66 @@ const Eleccion = () => {
   const [proposals, setProposals] = useState<ProposalForm>(emptyProposals);
   const [partido, setPartido] = useState("");
   const [flyerUrl, setFlyerUrl] = useState("");
+  const [editingCandidateId, setEditingCandidateId] = useState<string | null>(null);
 
   const { data: alreadyVoted } = useHasVotedElection(election?.id ?? null, dni, currentRound);
 
   const registerMut = useRegisterCandidate();
   const voteMut = useCastElectionVote();
+  const updateMut = useUpdateCandidate();
+
+  const editingCandidate = useMemo(
+    () => candidates.find((c) => c.id === editingCandidateId) ?? null,
+    [candidates, editingCandidateId],
+  );
+
+  function startEdit(candidateId: string) {
+    const c = candidates.find((x) => x.id === candidateId);
+    if (!c) return;
+    setEditingCandidateId(candidateId);
+    setDni("");
+    setPartido(c.partido_politico ?? "");
+    const filled = emptyProposals();
+    [...PROPOSAL_TOPICS, ...PROPOSAL_QUESTIONS].forEach((t) => {
+      const v = c[t.key as keyof CandidateWithPlayer] as string | null | undefined;
+      filled[t.key as ProposalKey] = v ?? "";
+    });
+    setProposals(filled);
+    setStep("editIdentify");
+  }
+
+  async function handleUpdate() {
+    if (!election || !editingCandidate) return;
+    if (dni.length < 7) { toast.error("Ingresá el DNI"); return; }
+    if (!partido.trim()) { toast.error("Ingresá el nombre del partido"); return; }
+    const result = await updateMut.mutateAsync({
+      candidate_id: editingCandidate.id,
+      election_id: election.id,
+      dni,
+      partido,
+      ...proposals,
+    });
+    const messages: Record<string, string> = {
+      ok: "Candidatura actualizada",
+      invalid_dni: "DNI inválido",
+      dni_not_found: "Tu DNI no está registrado",
+      not_found: "Candidatura no encontrada",
+      unauthorized: "Ese DNI no es del presidente ni del vice de esta candidatura",
+      election_not_found: "Elección no encontrada",
+      postulacion_closed: "Ya no se puede editar (postulaciones cerradas)",
+      missing_partido: "Ingresá el nombre del partido",
+    };
+    if (result.status === "ok") {
+      toast.success(messages.ok);
+      setStep("overview");
+      setEditingCandidateId(null);
+      setDni("");
+      setPartido("");
+      setProposals(emptyProposals());
+    } else {
+      toast.error(messages[result.status] ?? result.status);
+    }
+  }
 
   const countdown = useCountdown(
     election?.estado === "postulacion"
@@ -423,6 +492,7 @@ const Eleccion = () => {
                 votos={(voteCounts as VoteCounts)[c.id] ?? 0}
                 selected={false}
                 showVoteButton={false}
+                onEdit={isPostulacionOpen ? () => startEdit(c.id) : undefined}
               />
             ))}
           </div>
@@ -593,6 +663,119 @@ const Eleccion = () => {
 
         <Button className="w-full" disabled={!selectedCandidate || voteMut.isPending} onClick={handleVote}>
           {voteMut.isPending ? "Registrando..." : "Confirmar voto"}
+        </Button>
+      </div>
+    );
+  }
+
+  // ── Edit: identificación ─────────────────────────────────────────────────────
+
+  if (step === "editIdentify" && editingCandidate) {
+    const presName = editingCandidate.players.apodo ?? editingCandidate.players.nombre;
+    const viceName = editingCandidate.vice ? (editingCandidate.vice.apodo ?? editingCandidate.vice.nombre) : null;
+    return (
+      <div className="max-w-md mx-auto px-4 py-10 space-y-6">
+        <button
+          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => {
+            setStep("overview");
+            setEditingCandidateId(null);
+            setDni("");
+          }}
+        >
+          <ArrowLeft size={14} /> Volver
+        </button>
+        <h1 className="text-xl font-black">Editar candidatura</h1>
+        <div className="rounded-xl border border-border bg-card p-4 space-y-1">
+          <p className="text-sm text-muted-foreground">Fórmula</p>
+          <p className="font-semibold">
+            {presName}{viceName && <span className="text-muted-foreground font-normal"> & {viceName}</span>}
+          </p>
+          <p className="text-sm text-primary">{editingCandidate.partido_politico}</p>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Ingresá tu DNI (el del presidente o el del vice) para confirmar tu identidad.
+        </p>
+        <div className="space-y-2">
+          <Label htmlFor="edit-dni">DNI</Label>
+          <Input
+            id="edit-dni"
+            type="password"
+            placeholder="Ingresá el DNI"
+            value={dni}
+            onChange={(e) => setDni(e.target.value)}
+            autoComplete="off"
+          />
+        </div>
+        <Button className="w-full" disabled={dni.length < 7} onClick={() => setStep("edit")}>
+          Continuar
+        </Button>
+      </div>
+    );
+  }
+
+  // ── Edit: formulario ─────────────────────────────────────────────────────────
+
+  if (step === "edit" && editingCandidate) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
+        <button
+          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => setStep("editIdentify")}
+        >
+          <ArrowLeft size={14} /> Volver
+        </button>
+        <h1 className="text-xl font-black">Editar candidatura</h1>
+        <p className="text-xs text-muted-foreground">
+          No se pueden cambiar el presidente, el vice ni el flyer desde acá. Para eso reabrí la postulación con el admin.
+        </p>
+
+        <div className="rounded-xl border border-border bg-card p-4 space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="edit-partido">Nombre del partido político</Label>
+            <Input
+              id="edit-partido"
+              placeholder="Ej: Frente Goleador"
+              value={partido}
+              onChange={(e) => setPartido(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-4 border-t border-border pt-4">
+          <h2 className="font-semibold">Propuestas temáticas</h2>
+          {PROPOSAL_TOPICS.map((t) => (
+            <div key={t.key} className="space-y-1">
+              <Label htmlFor={`edit-${t.key}`}>{t.label}</Label>
+              <Textarea
+                id={`edit-${t.key}`}
+                placeholder="Tu propuesta..."
+                rows={2}
+                value={proposals[t.key]}
+                onChange={(e) => setProposals((prev) => ({ ...prev, [t.key]: e.target.value }))}
+              />
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-4 border-t border-border pt-4">
+          <h2 className="font-semibold">Preguntas específicas</h2>
+          {PROPOSAL_QUESTIONS.map((t) => (
+            <div key={t.key} className="space-y-1">
+              <Label htmlFor={`edit-${t.key}`}>{t.label}</Label>
+              <Textarea
+                id={`edit-${t.key}`}
+                placeholder="Tu respuesta..."
+                rows={2}
+                value={proposals[t.key]}
+                onChange={(e) => setProposals((prev) => ({ ...prev, [t.key]: e.target.value }))}
+              />
+            </div>
+          ))}
+        </div>
+
+        <Button className="w-full" onClick={handleUpdate} disabled={updateMut.isPending}>
+          {updateMut.isPending ? "Guardando..." : "Guardar cambios"}
         </Button>
       </div>
     );
