@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
+import { FlyerUploader } from "@/components/election/FlyerUploader";
 import {
   useActiveElection,
   useCandidates,
@@ -451,15 +452,10 @@ const Eleccion = () => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="flyer-url">
-              URL del flyer / afiche <span className="text-muted-foreground font-normal">(opcional, formato 3:4 vertical)</span>
+            <Label>
+              Flyer / afiche <span className="text-muted-foreground font-normal">(opcional, formato 3:4 vertical)</span>
             </Label>
-            <Input id="flyer-url" type="url" placeholder="https://..." value={flyerUrl} onChange={(e) => setFlyerUrl(e.target.value)} />
-            {flyerUrl && (
-              <div className="mt-2 rounded-lg overflow-hidden border border-border" style={{ maxWidth: "180px" }}>
-                <img src={flyerUrl} alt="Vista previa del flyer" className="w-full object-cover" style={{ aspectRatio: "3/4" }} />
-              </div>
-            )}
+            <FlyerUploader currentUrl={flyerUrl || null} onChange={(url) => setFlyerUrl(url ?? "")} />
           </div>
         </div>
 
