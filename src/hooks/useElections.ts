@@ -12,6 +12,12 @@ export type CandidateWithPlayer = Candidate & {
     apodo: string | null;
     foto_url: string | null;
   };
+  vice?: {
+    id: string;
+    nombre: string;
+    apodo: string | null;
+    foto_url: string | null;
+  } | null;
   votos?: number;
 };
 
@@ -75,7 +81,7 @@ export const useCandidates = (electionId: string | null) =>
       const { data, error } = await supabase
         .from("candidates")
         .select(
-          `*, players (id, nombre, apodo, foto_url)`
+          `*, players (id, nombre, apodo, foto_url), vice:players!candidates_vice_player_id_fkey (id, nombre, apodo, foto_url)`
         )
         .eq("election_id", electionId!)
         .order("created_at", { ascending: true });
@@ -154,6 +160,8 @@ export type RegisterCandidateInput = {
   election_id: string;
   dni: string;
   partido: string;
+  vice_dni?: string;
+  flyer_url?: string;
   propuesta_organizacion?: string;
   propuesta_votacion_premios?: string;
   propuesta_economia?: string;
@@ -177,6 +185,8 @@ export const useRegisterCandidate = () => {
         p_election_id: input.election_id,
         p_dni: input.dni,
         p_partido: input.partido,
+        p_vice_dni: input.vice_dni ?? null,
+        p_flyer_url: input.flyer_url ?? null,
         p_propuesta_organizacion: input.propuesta_organizacion ?? "",
         p_propuesta_votacion_premios: input.propuesta_votacion_premios ?? "",
         p_propuesta_economia: input.propuesta_economia ?? "",

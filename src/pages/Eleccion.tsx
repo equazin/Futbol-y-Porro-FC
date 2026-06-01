@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -92,67 +93,99 @@ function CandidateCard({
 
   return (
     <div
-      className={`rounded-xl border p-4 space-y-3 transition-colors bg-card ${
+      className={`rounded-xl border overflow-hidden transition-colors bg-card ${
         selected ? "border-primary ring-1 ring-primary" : "border-border"
       } ${candidate.eliminado ? "opacity-50" : ""}`}
     >
-      <div className="flex items-center gap-3">
-        <PlayerAvatar
-          nombre={candidate.players.nombre}
-          foto_url={candidate.players.foto_url}
-          size="md"
-        />
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold truncate">
-            {candidate.players.apodo ?? candidate.players.nombre}
-          </p>
-          <p className="text-sm text-muted-foreground truncate">
-            {candidate.partido_politico}
-          </p>
-        </div>
-        <div className="text-right shrink-0">
-          <span className="text-lg font-bold text-foreground">{votos}</span>
-          <p className="text-xs text-muted-foreground">votos</p>
-        </div>
-      </div>
-
-      {candidate.eliminado && (
-        <p className="text-xs text-destructive font-medium">Eliminado (paso argentino)</p>
-      )}
-
-      <button
-        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-        onClick={() => setExpanded((e) => !e)}
-      >
-        {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-        {expanded ? "Ocultar propuestas" : "Ver propuestas"}
-      </button>
-
-      {expanded && (
-        <div className="space-y-2 text-sm text-muted-foreground border-t border-border pt-3">
-          {[...PROPOSAL_TOPICS, ...PROPOSAL_QUESTIONS].map((t) => {
-            const val = candidate[t.key as keyof CandidateWithPlayer] as string;
-            if (!val) return null;
-            return (
-              <div key={t.key}>
-                <p className="font-medium text-foreground">{t.label}</p>
-                <p className="whitespace-pre-wrap">{val}</p>
-              </div>
-            );
-          })}
+      {candidate.flyer_url && (
+        <div className="w-full" style={{ aspectRatio: "3/4", maxHeight: "420px" }}>
+          <img
+            src={candidate.flyer_url}
+            alt={`Flyer de ${candidate.partido_politico}`}
+            className="w-full h-full object-cover"
+            style={{ display: "block" }}
+          />
         </div>
       )}
 
-      {showVoteButton && !candidate.eliminado && (
-        <Button
-          variant={selected ? "default" : "outline"}
-          size="sm"
-          className="w-full"
-          onClick={onSelect}
+      <div className="p-4 space-y-3">
+        <div className="flex items-start gap-3">
+          <div className="flex flex-col items-center gap-1 shrink-0">
+            <PlayerAvatar
+              nombre={candidate.players.nombre}
+              foto_url={candidate.players.foto_url}
+              size="md"
+            />
+            <span className="text-xs text-muted-foreground">Pdte.</span>
+            {candidate.vice && (
+              <>
+                <PlayerAvatar
+                  nombre={candidate.vice.nombre}
+                  foto_url={candidate.vice.foto_url}
+                  size="sm"
+                />
+                <span className="text-xs text-muted-foreground">Vice</span>
+              </>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold truncate">
+              {candidate.players.apodo ?? candidate.players.nombre}
+            </p>
+            {candidate.vice && (
+              <p className="text-sm text-muted-foreground truncate flex items-center gap-1">
+                <Users size={12} className="shrink-0" />
+                {candidate.vice.apodo ?? candidate.vice.nombre}
+              </p>
+            )}
+            <p className="text-sm text-primary font-medium truncate mt-0.5">
+              {candidate.partido_politico}
+            </p>
+          </div>
+          <div className="text-right shrink-0">
+            <span className="text-lg font-bold text-foreground">{votos}</span>
+            <p className="text-xs text-muted-foreground">votos</p>
+          </div>
+        </div>
+
+        {candidate.eliminado && (
+          <p className="text-xs text-destructive font-medium">Eliminado (paso argentino)</p>
+        )}
+
+        <button
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => setExpanded((e) => !e)}
         >
-          {selected ? <><Check size={14} className="mr-1" /> Seleccionado</> : "Votar a este candidato"}
-        </Button>
-      )}
+          {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          {expanded ? "Ocultar propuestas" : "Ver propuestas"}
+        </button>
+
+        {expanded && (
+          <div className="space-y-2 text-sm text-muted-foreground border-t border-border pt-3">
+            {[...PROPOSAL_TOPICS, ...PROPOSAL_QUESTIONS].map((t) => {
+              const val = candidate[t.key as keyof CandidateWithPlayer] as string;
+              if (!val) return null;
+              return (
+                <div key={t.key}>
+                  <p className="font-medium text-foreground">{t.label}</p>
+                  <p className="whitespace-pre-wrap">{val}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {showVoteButton && !candidate.eliminado && (
+          <Button
+            variant={selected ? "default" : "outline"}
+            size="sm"
+            className="w-full"
+            onClick={onSelect}
+          >
+            {selected ? <><Check size={14} className="mr-1" /> Seleccionado</> : "Votar a este partido"}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -181,9 +214,11 @@ const Eleccion = () => {
 
   const [step, setStep] = useState<Step>("overview");
   const [dni, setDni] = useState("");
+  const [viceDni, setViceDni] = useState("");
   const [selectedCandidate, setSelectedCandidate] = useState<string | null>(null);
   const [proposals, setProposals] = useState<ProposalForm>(emptyProposals);
   const [partido, setPartido] = useState("");
+  const [flyerUrl, setFlyerUrl] = useState("");
 
   const { data: alreadyVoted } = useHasVotedElection(election?.id ?? null, dni, currentRound);
 
@@ -205,11 +240,22 @@ const Eleccion = () => {
     if (!election) return;
     if (!partido.trim()) { toast.error("Ingresá el nombre de tu partido político"); return; }
     if (dni.length < 7) { toast.error("Ingresá tu DNI"); return; }
-    const result = await registerMut.mutateAsync({ election_id: election.id, dni, partido, ...proposals });
+    const result = await registerMut.mutateAsync({
+      election_id: election.id,
+      dni,
+      partido,
+      vice_dni: viceDni.trim() || undefined,
+      flyer_url: flyerUrl.trim() || undefined,
+      ...proposals,
+    });
     const messages: Record<string, string> = {
       ok: "¡Te postulaste exitosamente!",
       invalid_dni: "DNI inválido",
       dni_not_found: "Tu DNI no está registrado en el sistema",
+      invalid_vice_dni: "DNI del vice inválido",
+      vice_dni_not_found: "El DNI del vice no está registrado",
+      vice_same_as_president: "El vice no puede ser el mismo que el presidente",
+      vice_already_candidate: "El vice ya está postulado como presidente",
       postulacion_closed: "Las postulaciones ya cerraron",
       window_closed: "La ventana de postulación no está abierta",
       already_registered: "Ya estás postulado en esta elección",
@@ -219,7 +265,9 @@ const Eleccion = () => {
       toast.success(messages.ok);
       setStep("overview");
       setDni("");
+      setViceDni("");
       setPartido("");
+      setFlyerUrl("");
       setProposals(emptyProposals());
     } else {
       toast.error(messages[result.status] ?? result.status);
@@ -299,12 +347,26 @@ const Eleccion = () => {
           if (!winner) return null;
           return (
             <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 space-y-3">
-              <p className="font-bold text-amber-400 text-lg">🏆 Presidente electo</p>
+              <p className="font-bold text-amber-400 text-lg">🏆 Partido ganador</p>
               <div className="flex items-center gap-3">
-                <PlayerAvatar nombre={winner.players.nombre} foto_url={winner.players.foto_url} size="lg" />
+                <div className="flex flex-col items-center gap-1">
+                  <PlayerAvatar nombre={winner.players.nombre} foto_url={winner.players.foto_url} size="lg" />
+                  <span className="text-xs text-muted-foreground">Pdte.</span>
+                </div>
+                {winner.vice && (
+                  <div className="flex flex-col items-center gap-1">
+                    <PlayerAvatar nombre={winner.vice.nombre} foto_url={winner.vice.foto_url} size="md" />
+                    <span className="text-xs text-muted-foreground">Vice</span>
+                  </div>
+                )}
                 <div>
                   <p className="font-semibold text-lg">
                     {winner.players.apodo ?? winner.players.nombre}
+                    {winner.vice && (
+                      <span className="text-muted-foreground font-normal text-base">
+                        {" & "}{winner.vice.apodo ?? winner.vice.nombre}
+                      </span>
+                    )}
                   </p>
                   <p className="text-muted-foreground">{winner.partido_politico}</p>
                   <p className="text-sm font-medium text-amber-400">
@@ -368,14 +430,37 @@ const Eleccion = () => {
         </button>
         <h1 className="text-xl font-black">Postularme como presidente</h1>
 
-        <div className="space-y-2">
-          <Label htmlFor="dni">Tu DNI</Label>
-          <Input id="dni" type="password" placeholder="Ingresá tu DNI" value={dni} onChange={(e) => setDni(e.target.value)} autoComplete="off" />
-        </div>
+        <div className="rounded-xl border border-border bg-card p-4 space-y-4">
+          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Fórmula</h2>
 
-        <div className="space-y-2">
-          <Label htmlFor="partido">Nombre de tu partido político</Label>
-          <Input id="partido" placeholder="Ej: Frente Goleador" value={partido} onChange={(e) => setPartido(e.target.value)} />
+          <div className="space-y-2">
+            <Label htmlFor="dni">Tu DNI (presidente)</Label>
+            <Input id="dni" type="password" placeholder="Ingresá tu DNI" value={dni} onChange={(e) => setDni(e.target.value)} autoComplete="off" />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="vice-dni">
+              DNI del vice <span className="text-muted-foreground font-normal">(opcional)</span>
+            </Label>
+            <Input id="vice-dni" type="password" placeholder="DNI del vice presidente" value={viceDni} onChange={(e) => setViceDni(e.target.value)} autoComplete="off" />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="partido">Nombre del partido político</Label>
+            <Input id="partido" placeholder="Ej: Frente Goleador" value={partido} onChange={(e) => setPartido(e.target.value)} />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="flyer-url">
+              URL del flyer / afiche <span className="text-muted-foreground font-normal">(opcional, formato 3:4 vertical)</span>
+            </Label>
+            <Input id="flyer-url" type="url" placeholder="https://..." value={flyerUrl} onChange={(e) => setFlyerUrl(e.target.value)} />
+            {flyerUrl && (
+              <div className="mt-2 rounded-lg overflow-hidden border border-border" style={{ maxWidth: "180px" }}>
+                <img src={flyerUrl} alt="Vista previa del flyer" className="w-full object-cover" style={{ aspectRatio: "3/4" }} />
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="space-y-4 border-t border-border pt-4">

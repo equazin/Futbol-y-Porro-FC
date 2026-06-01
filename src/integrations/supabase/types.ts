@@ -547,6 +547,8 @@ export type Database = {
           propuesta_presupuesto: string
           propuesta_convivencia2: string
           propuesta_foules: string
+          vice_player_id: string | null
+          flyer_url: string | null
           eliminado: boolean
           created_at: string
         }
@@ -554,6 +556,8 @@ export type Database = {
           id?: string
           election_id: string
           player_id: string
+          vice_player_id?: string | null
+          flyer_url?: string | null
           partido_politico: string
           propuesta_organizacion?: string
           propuesta_votacion_premios?: string
@@ -575,6 +579,8 @@ export type Database = {
           id?: string
           election_id?: string
           player_id?: string
+          vice_player_id?: string | null
+          flyer_url?: string | null
           partido_politico?: string
           propuesta_organizacion?: string
           propuesta_votacion_premios?: string
@@ -603,6 +609,13 @@ export type Database = {
           {
             foreignKeyName: "candidates_player_id_fkey"
             columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidates_vice_player_id_fkey"
+            columns: ["vice_player_id"]
             isOneToOne: false
             referencedRelation: "players"
             referencedColumns: ["id"]

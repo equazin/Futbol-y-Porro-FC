@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Crown, Plus, Vote, ChevronDown, ChevronUp, Check, AlertTriangle, Trash2, BarChart2 } from "lucide-react";
+import { Crown, Plus, Vote, ChevronDown, ChevronUp, Check, AlertTriangle, Trash2, BarChart2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,16 +47,30 @@ function CandidateRow({ candidate, votos }: { candidate: CandidateWithPlayer; vo
 
   return (
     <div className={`border border-border rounded-lg p-3 space-y-2 bg-card ${candidate.eliminado ? "opacity-50" : ""}`}>
-      <div className="flex items-center gap-3">
-        <PlayerAvatar
-          nombre={candidate.players.nombre}
-          foto_url={candidate.players.foto_url}
-          size="sm"
-        />
+      <div className="flex items-start gap-3">
+        {candidate.flyer_url && (
+          <div className="rounded overflow-hidden border border-border shrink-0" style={{ width: 48, aspectRatio: "3/4" }}>
+            <img src={candidate.flyer_url} alt="flyer" className="w-full h-full object-cover" />
+          </div>
+        )}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-col items-center gap-0.5">
+            <PlayerAvatar nombre={candidate.players.nombre} foto_url={candidate.players.foto_url} size="sm" />
+            {candidate.vice && (
+              <PlayerAvatar nombre={candidate.vice.nombre} foto_url={candidate.vice.foto_url} size="sm" />
+            )}
+          </div>
+        </div>
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-sm text-foreground truncate">
             {candidate.players.apodo ?? candidate.players.nombre}
           </p>
+          {candidate.vice && (
+            <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
+              <Users size={10} className="shrink-0" />
+              {candidate.vice.apodo ?? candidate.vice.nombre}
+            </p>
+          )}
           <p className="text-xs text-muted-foreground truncate">{candidate.partido_politico}</p>
         </div>
         <div className="text-right shrink-0">
