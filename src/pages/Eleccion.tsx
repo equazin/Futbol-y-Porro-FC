@@ -304,7 +304,7 @@ const Eleccion = () => {
     return (
       <div className="max-w-lg mx-auto px-4 py-12">
         <EmptyState
-          icon={<Crown className="w-12 h-12 text-zinc-300" />}
+          icon={Crown}
           title="No hay elección activa"
           description="Cuando se abra una nueva elección presidencial aparecerá aquí."
         />
@@ -374,7 +374,7 @@ const Eleccion = () => {
         {/* Candidates list */}
         {candidates.length === 0 ? (
           <EmptyState
-            icon={<UserCheck className="w-10 h-10 text-zinc-300" />}
+            icon={UserCheck}
             title="Todavía no hay postulados"
             description="Sé el primero en postularte."
           />
