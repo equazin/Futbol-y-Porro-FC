@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Crown, Plus, Vote, ChevronDown, ChevronUp, Check, AlertTriangle, Trash2, BarChart2, Users } from "lucide-react";
+import { Crown, Plus, Vote, ChevronDown, ChevronUp, Check, AlertTriangle, Trash2, BarChart2, Users, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import {
   useOpenElectionVoting,
   useCloseElectionVoting,
   useDeleteElection,
+  useDeleteCandidate,
   type Election,
   type CandidateWithPlayer,
   type VoteCounts,
@@ -42,8 +43,16 @@ const STATUS_LABEL: Record<Election["estado"], string> = {
   cerrada: "✅ Cerrada",
 };
 
-function CandidateRow({ candidate, votos }: { candidate: CandidateWithPlayer; votos: number }) {
+function CandidateRow({ candidate, votos, electionId }: { candidate: CandidateWithPlayer; votos: number; electionId: string }) {
   const [expanded, setExpanded] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const deleteMut = useDeleteCandidate();
+
+  async function handleDelete() {
+    const result = await deleteMut.mutateAsync({ candidate_id: candidate.id, election_id: electionId });
+    if (result.status === "ok") toast.success("Candidato eliminado");
+    else toast.error(result.status);
+  }
 
   return (
     <div className={`border border-border rounded-lg p-3 space-y-2 bg-card ${candidate.eliminado ? "opacity-50" : ""}`}>
@@ -79,6 +88,24 @@ function CandidateRow({ candidate, votos }: { candidate: CandidateWithPlayer; vo
         </div>
         {candidate.eliminado && (
           <span className="text-xs text-destructive font-medium">Eliminado</span>
+        )}
+        {!confirmDelete ? (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="shrink-0 p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+            title="Eliminar candidato"
+          >
+            <UserX size={15} />
+          </button>
+        ) : (
+          <div className="shrink-0 flex items-center gap-1">
+            <Button size="sm" variant="destructive" onClick={handleDelete} disabled={deleteMut.isPending} className="h-6 text-xs px-2">
+              Sí
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(false)} className="h-6 text-xs px-2">
+              No
+            </Button>
+          </div>
         )}
       </div>
 
@@ -220,7 +247,7 @@ function ElectionPanel({ election }: { election: Election }) {
           <p className="text-sm text-muted-foreground">Todavía no hay postulados.</p>
         ) : (
           sorted.map((c) => (
-            <CandidateRow key={c.id} candidate={c} votos={(voteCounts as VoteCounts)[c.id] ?? 0} />
+            <CandidateRow key={c.id} candidate={c} votos={(voteCounts as VoteCounts)[c.id] ?? 0} electionId={election.id} />
           ))
         )}
       </div>

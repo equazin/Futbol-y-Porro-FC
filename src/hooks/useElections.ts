@@ -316,6 +316,24 @@ export const useDeleteElection = () => {
   });
 };
 
+export const useDeleteCandidate = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ candidate_id, election_id }: { candidate_id: string; election_id: string }) => {
+      const { data, error } = await supabase.rpc("delete_candidate", {
+        p_candidate_id: candidate_id,
+      });
+      if (error) throw error;
+      return data as { status: string };
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["candidates", vars.election_id] });
+      qc.invalidateQueries({ queryKey: ["election_votes_admin", vars.election_id] });
+      qc.invalidateQueries({ queryKey: ["election_vote_counts", vars.election_id] });
+    },
+  });
+};
+
 export type AdminVoteRow = {
   candidate_id: string;
   round: number;
