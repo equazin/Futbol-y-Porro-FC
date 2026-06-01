@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Crown, Plus, Vote, ChevronDown, ChevronUp, Check, AlertTriangle } from "lucide-react";
+import { Crown, Plus, Vote, ChevronDown, ChevronUp, Check, AlertTriangle, Trash2, BarChart2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,9 +9,11 @@ import {
   useElections,
   useCandidates,
   useElectionVoteCounts,
+  useElectionVotesAdmin,
   useCreateElection,
   useOpenElectionVoting,
   useCloseElectionVoting,
+  useDeleteElection,
   type Election,
   type CandidateWithPlayer,
   type VoteCounts,
@@ -96,9 +98,14 @@ function ElectionPanel({ election }: { election: Election }) {
   const { data: candidates = [] } = useCandidates(election.id);
   const currentRound = election.estado === "segunda_vuelta" ? 2 : 1;
   const { data: voteCounts = {} } = useElectionVoteCounts(election.id, currentRound);
+  const { data: adminVotes = [] } = useElectionVotesAdmin(election.id);
+
+  const [showVotes, setShowVotes] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const openVotingMut = useOpenElectionVoting();
   const closeMut = useCloseElectionVoting();
+  const deleteMut = useDeleteElection();
 
   async function handleOpenVoting() {
     const result = await openVotingMut.mutateAsync({ election_id: election.id });
@@ -120,21 +127,31 @@ function ElectionPanel({ election }: { election: Election }) {
     else toast.error(messages[result.status] ?? result.status);
   }
 
+  async function handleDelete() {
+    const result = await deleteMut.mutateAsync(election.id);
+    if (result.status === "ok") toast.success("Elección borrada");
+    else toast.error(result.status);
+  }
+
   const totalVotes = Object.values(voteCounts as VoteCounts).reduce((a, b) => a + b, 0);
   const sorted = [...candidates].sort(
     (a, b) => ((voteCounts as VoteCounts)[b.id] ?? 0) - ((voteCounts as VoteCounts)[a.id] ?? 0)
   );
 
+  // Group admin votes by round for display
+  const rounds = [...new Set(adminVotes.map((v) => v.round))].sort();
+
   return (
     <div className="rounded-2xl border border-primary/30 bg-gradient-card p-5 shadow-card space-y-4">
+      {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="space-y-1">
-          <h2 className="font-bold text-lg text-foreground">{election.titulo}</h2>
+          <h2 className="font-bold text-lg">{election.titulo}</h2>
           <span className="inline-flex text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">
             {STATUS_LABEL[election.estado]}
           </span>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
           {election.estado === "postulacion" && (
             <Button size="sm" onClick={handleOpenVoting} disabled={openVotingMut.isPending}>
               <Vote size={14} className="mr-1" />
@@ -147,9 +164,27 @@ function ElectionPanel({ election }: { election: Election }) {
               Cerrar y calcular ganador
             </Button>
           )}
+          {/* Delete button */}
+          {!confirmDelete ? (
+            <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setConfirmDelete(true)}>
+              <Trash2 size={14} className="mr-1" />
+              Borrar
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-1.5">
+              <span className="text-xs text-destructive font-medium">¿Confirmar borrado?</span>
+              <Button size="sm" variant="destructive" onClick={handleDelete} disabled={deleteMut.isPending} className="h-6 text-xs px-2">
+                Sí, borrar
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(false)} className="h-6 text-xs px-2">
+                Cancelar
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
+      {/* Reglas */}
       {(election.estado === "votacion" || election.estado === "segunda_vuelta") && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-400 flex gap-2">
           <AlertTriangle size={16} className="shrink-0 mt-0.5" />
@@ -164,29 +199,81 @@ function ElectionPanel({ election }: { election: Election }) {
         </div>
       )}
 
-      {totalVotes > 0 && (
-        <p className="text-sm text-muted-foreground">
-          Total votos ronda {currentRound}: <strong className="text-foreground">{totalVotes}</strong>
-        </p>
-      )}
-
+      {/* Candidatos */}
       <div className="space-y-2">
-        <p className="text-sm font-medium text-muted-foreground">
-          Candidatos ({candidates.length})
-        </p>
+        <p className="text-sm font-medium text-muted-foreground">Candidatos ({candidates.length})</p>
         {sorted.length === 0 ? (
           <p className="text-sm text-muted-foreground">Todavía no hay postulados.</p>
         ) : (
           sorted.map((c) => (
-            <CandidateRow
-              key={c.id}
-              candidate={c}
-              votos={(voteCounts as VoteCounts)[c.id] ?? 0}
-            />
+            <CandidateRow key={c.id} candidate={c} votos={(voteCounts as VoteCounts)[c.id] ?? 0} />
           ))
         )}
       </div>
 
+      {/* Votos — toggle */}
+      <div className="border-t border-border pt-3 space-y-3">
+        <button
+          className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => setShowVotes((s) => !s)}
+        >
+          <BarChart2 size={15} />
+          {showVotes ? "Ocultar votos" : `Ver votos (${totalVotes} total)`}
+          {showVotes ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </button>
+
+        {showVotes && (
+          <div className="space-y-4">
+            {adminVotes.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No hay votos registrados.</p>
+            ) : (
+              rounds.map((round) => {
+                const roundVotes = adminVotes.filter((v) => v.round === round);
+                const roundTotal = roundVotes.reduce((a, v) => a + v.votos, 0);
+                return (
+                  <div key={round} className="space-y-2">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Ronda {round} — {roundTotal} votos
+                    </p>
+                    {roundVotes
+                      .sort((a, b) => b.votos - a.votos)
+                      .map((v) => {
+                        const cand = candidates.find((c) => c.id === v.candidate_id);
+                        const pct = roundTotal > 0 ? Math.round((v.votos / roundTotal) * 100) : 0;
+                        return (
+                          <div key={v.candidate_id} className="space-y-1">
+                            <div className="flex items-center justify-between text-sm">
+                              <div className="flex items-center gap-2 min-w-0">
+                                {cand && (
+                                  <PlayerAvatar nombre={cand.players.nombre} foto_url={cand.players.foto_url} size="sm" />
+                                )}
+                                <span className="truncate font-medium">
+                                  {cand ? (cand.players.apodo ?? cand.players.nombre) : v.candidate_id.slice(0, 8)}
+                                </span>
+                                {cand?.eliminado && (
+                                  <span className="text-xs text-destructive shrink-0">eliminado</span>
+                                )}
+                              </div>
+                              <span className="shrink-0 font-bold ml-2">{v.votos} <span className="text-muted-foreground font-normal text-xs">({pct}%)</span></span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-primary transition-all"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Timestamps */}
       <div className="text-xs text-muted-foreground space-y-0.5 border-t border-border pt-3">
         <p>Postulaciones: {new Date(election.postulacion_abre).toLocaleString("es-AR")} → {new Date(election.postulacion_cierra).toLocaleString("es-AR")}</p>
         {election.votacion_abre && (

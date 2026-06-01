@@ -274,3 +274,38 @@ export const useCloseElectionVoting = () => {
     },
   });
 };
+
+export const useDeleteElection = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (election_id: string) => {
+      const { data, error } = await supabase.rpc("delete_election", {
+        p_election_id: election_id,
+      });
+      if (error) throw error;
+      return data as { status: string };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["elections"] });
+    },
+  });
+};
+
+export type AdminVoteRow = {
+  candidate_id: string;
+  round: number;
+  votos: number;
+};
+
+export const useElectionVotesAdmin = (electionId: string | null) =>
+  useQuery({
+    queryKey: ["election_votes_admin", electionId],
+    enabled: !!electionId,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_election_votes_admin", {
+        p_election_id: electionId!,
+      });
+      if (error) throw error;
+      return (data ?? []) as AdminVoteRow[];
+    },
+  });
