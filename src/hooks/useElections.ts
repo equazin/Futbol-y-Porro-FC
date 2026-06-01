@@ -80,13 +80,28 @@ export const useCandidates = (electionId: string | null) =>
     queryFn: async () => {
       const { data, error } = await supabase
         .from("candidates")
-        .select(
-          `*, players (id, nombre, apodo, foto_url), vice:vice_player_id (id, nombre, apodo, foto_url)`
-        )
+        .select(`*, players (id, nombre, apodo, foto_url)`)
         .eq("election_id", electionId!)
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return data as CandidateWithPlayer[];
+
+      const rows = (data ?? []) as CandidateWithPlayer[];
+
+      // Resolve vice players separately to avoid FK join syntax issues
+      const viceIds = [...new Set(rows.map((r) => r.vice_player_id).filter(Boolean))] as string[];
+      if (viceIds.length > 0) {
+        const { data: vicePlayers } = await supabase
+          .from("players")
+          .select("id, nombre, apodo, foto_url")
+          .in("id", viceIds);
+        const viceMap = Object.fromEntries((vicePlayers ?? []).map((p) => [p.id, p]));
+        return rows.map((r) => ({
+          ...r,
+          vice: r.vice_player_id ? (viceMap[r.vice_player_id] ?? null) : null,
+        }));
+      }
+
+      return rows;
     },
   });
 
