@@ -12,6 +12,8 @@ import Ranking from "./pages/Ranking";
 import RankingPublico from "./pages/RankingPublico";
 import AnuncioGanadores from "./pages/AnuncioGanadores";
 import Votacion from "./pages/Votacion";
+import Eleccion from "./pages/Eleccion";
+import EleccionAdmin from "./pages/admin/EleccionAdmin";
 import Partidos from "./pages/Partidos";
 import PartidoDetalle from "./pages/PartidoDetalle";
 import Jugadores from "./pages/Jugadores";
@@ -52,6 +54,7 @@ const AppShell = () => {
               <Route path="/ranking" element={<Ranking />} />
               <Route path="/anuncio/:id" element={<AnuncioGanadores />} />
               <Route path="/votacion" element={<Votacion />} />
+              <Route path="/eleccion" element={<Eleccion />} />
               <Route path="/fondo" element={<Fondo readOnly />} />
               <Route path="/multas" element={<Multas readOnly />} />
             </Route>
@@ -70,6 +73,7 @@ const AppShell = () => {
                 <Route path="/admin/finanzas" element={<Finanzas />} />
                 <Route path="/admin/fine-presets" element={<FinePresets />} />
                 <Route path="/admin/canchas" element={<Venues />} />
+                <Route path="/admin/eleccion" element={<EleccionAdmin />} />
                 <Route path="/historial" element={<Historial />} />
               </Route>
             </Route>

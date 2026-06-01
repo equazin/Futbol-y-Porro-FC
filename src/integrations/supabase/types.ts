@@ -485,6 +485,172 @@ export type Database = {
           },
         ]
       }
+      elections: {
+        Row: {
+          id: string
+          titulo: string
+          estado: "postulacion" | "votacion" | "segunda_vuelta" | "cerrada"
+          postulacion_abre: string
+          postulacion_cierra: string
+          votacion_abre: string | null
+          votacion_cierra: string | null
+          ganador_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          titulo: string
+          estado?: "postulacion" | "votacion" | "segunda_vuelta" | "cerrada"
+          postulacion_abre?: string
+          postulacion_cierra?: string
+          votacion_abre?: string | null
+          votacion_cierra?: string | null
+          ganador_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          titulo?: string
+          estado?: "postulacion" | "votacion" | "segunda_vuelta" | "cerrada"
+          postulacion_abre?: string
+          votacion_abre?: string | null
+          votacion_cierra?: string | null
+          ganador_id?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "elections_ganador_id_fkey"
+            columns: ["ganador_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      candidates: {
+        Row: {
+          id: string
+          election_id: string
+          player_id: string
+          partido_politico: string
+          propuesta_organizacion: string
+          propuesta_votacion_premios: string
+          propuesta_economia: string
+          propuesta_convivencia: string
+          propuesta_tercer_tiempo: string
+          propuesta_infraestructura: string
+          propuesta_constitucion: string
+          propuesta_domingos: string
+          propuesta_ausencias: string
+          propuesta_equipos: string
+          propuesta_presupuesto: string
+          propuesta_convivencia2: string
+          propuesta_foules: string
+          eliminado: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          election_id: string
+          player_id: string
+          partido_politico: string
+          propuesta_organizacion?: string
+          propuesta_votacion_premios?: string
+          propuesta_economia?: string
+          propuesta_convivencia?: string
+          propuesta_tercer_tiempo?: string
+          propuesta_infraestructura?: string
+          propuesta_constitucion?: string
+          propuesta_domingos?: string
+          propuesta_ausencias?: string
+          propuesta_equipos?: string
+          propuesta_presupuesto?: string
+          propuesta_convivencia2?: string
+          propuesta_foules?: string
+          eliminado?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          election_id?: string
+          player_id?: string
+          partido_politico?: string
+          propuesta_organizacion?: string
+          propuesta_votacion_premios?: string
+          propuesta_economia?: string
+          propuesta_convivencia?: string
+          propuesta_tercer_tiempo?: string
+          propuesta_infraestructura?: string
+          propuesta_constitucion?: string
+          propuesta_domingos?: string
+          propuesta_ausencias?: string
+          propuesta_equipos?: string
+          propuesta_presupuesto?: string
+          propuesta_convivencia2?: string
+          propuesta_foules?: string
+          eliminado?: boolean
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidates_election_id_fkey"
+            columns: ["election_id"]
+            isOneToOne: false
+            referencedRelation: "elections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidates_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      election_votes: {
+        Row: {
+          id: string
+          election_id: string
+          voter_dni_hash: string
+          candidate_id: string
+          round: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          election_id: string
+          voter_dni_hash: string
+          candidate_id: string
+          round?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          election_id?: string
+          voter_dni_hash?: string
+          candidate_id?: string
+          round?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "election_votes_election_id_fkey"
+            columns: ["election_id"]
+            isOneToOne: false
+            referencedRelation: "elections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "election_votes_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       rankings: {
@@ -510,6 +676,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
+      election_status: "postulacion" | "votacion" | "segunda_vuelta" | "cerrada"
       match_status: "pendiente" | "jugado" | "cerrado"
       player_position: "arquero" | "defensor" | "mediocampista" | "delantero"
       team_side: "A" | "B"
@@ -641,6 +808,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      election_status: ["postulacion", "votacion", "segunda_vuelta", "cerrada"],
       match_status: ["pendiente", "jugado", "cerrado"],
       player_position: ["arquero", "defensor", "mediocampista", "delantero"],
       team_side: ["A", "B"],

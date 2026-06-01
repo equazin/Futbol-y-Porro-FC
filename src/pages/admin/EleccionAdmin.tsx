@@ -1,0 +1,336 @@
+import { useState } from "react";
+import { Crown, Plus, Vote, ChevronDown, ChevronUp, Check, AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { PlayerAvatar } from "@/components/players/PlayerAvatar";
+import {
+  useElections,
+  useCandidates,
+  useElectionVoteCounts,
+  useCreateElection,
+  useOpenElectionVoting,
+  useCloseElectionVoting,
+  type Election,
+  type CandidateWithPlayer,
+  type VoteCounts,
+} from "@/hooks/useElections";
+
+const PROPOSAL_TOPICS = [
+  { key: "propuesta_organizacion", label: "⚽ Organización de los partidos" },
+  { key: "propuesta_votacion_premios", label: "🏆 Sistema de votación / premios" },
+  { key: "propuesta_economia", label: "💰 Economía del club" },
+  { key: "propuesta_convivencia", label: "🌿 Código de convivencia" },
+  { key: "propuesta_tercer_tiempo", label: '🥩 El "tercer tiempo"' },
+  { key: "propuesta_infraestructura", label: "🏟️ Infraestructura del grupo" },
+  { key: "propuesta_constitucion", label: "📜 Constitución del club" },
+  { key: "propuesta_domingos", label: "¿Cómo mejorarías los domingos?" },
+  { key: "propuesta_ausencias", label: "¿Qué harías con los que faltan mucho?" },
+  { key: "propuesta_equipos", label: "¿Cómo evitarías equipos disparejos?" },
+  { key: "propuesta_presupuesto", label: "¿Qué harías con el presupuesto?" },
+  { key: "propuesta_convivencia2", label: "¿Cómo mejorarías la convivencia?" },
+  { key: "propuesta_foules", label: "¿Política frente a los foules?" },
+] as const;
+
+// ─── Status helpers ────────────────────────────────────────────────────────────
+
+const STATUS_LABEL: Record<Election["estado"], string> = {
+  postulacion: "📋 Postulaciones",
+  votacion: "🗳️ Votación",
+  segunda_vuelta: "🔄 Segunda vuelta",
+  cerrada: "✅ Cerrada",
+};
+
+// ─── Candidate detail row ──────────────────────────────────────────────────────
+
+function CandidateRow({
+  candidate,
+  votos,
+}: {
+  candidate: CandidateWithPlayer;
+  votos: number;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className={`border rounded-lg p-3 space-y-2 ${candidate.eliminado ? "opacity-50 bg-zinc-50" : "bg-white"}`}>
+      <div className="flex items-center gap-3">
+        <PlayerAvatar
+          nombre={candidate.players.nombre}
+          apodo={candidate.players.apodo}
+          foto_url={candidate.players.foto_url}
+          size="sm"
+        />
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm truncate">
+            {candidate.players.apodo ?? candidate.players.nombre}
+          </p>
+          <p className="text-xs text-zinc-500 truncate">{candidate.partido_politico}</p>
+        </div>
+        <div className="text-right shrink-0">
+          <span className="font-bold">{votos}</span>
+          <span className="text-xs text-zinc-400 ml-1">votos</span>
+        </div>
+        {candidate.eliminado && (
+          <span className="text-xs text-red-500 font-medium">Eliminado</span>
+        )}
+      </div>
+
+      <button
+        className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-600"
+        onClick={() => setExpanded((e) => !e)}
+      >
+        {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        {expanded ? "Ocultar propuestas" : "Ver propuestas"}
+      </button>
+
+      {expanded && (
+        <div className="space-y-2 border-t pt-2 text-xs text-zinc-600">
+          {PROPOSAL_TOPICS.map((t) => {
+            const val = candidate[t.key as keyof CandidateWithPlayer] as string;
+            if (!val) return null;
+            return (
+              <div key={t.key}>
+                <p className="font-medium text-zinc-700">{t.label}</p>
+                <p className="whitespace-pre-wrap">{val}</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Election detail panel ─────────────────────────────────────────────────────
+
+function ElectionPanel({ election }: { election: Election }) {
+  const { data: candidates = [] } = useCandidates(election.id);
+  const currentRound = election.estado === "segunda_vuelta" ? 2 : 1;
+  const { data: voteCounts = {} } = useElectionVoteCounts(election.id, currentRound);
+
+  const openVotingMut = useOpenElectionVoting();
+  const closeMut = useCloseElectionVoting();
+
+  async function handleOpenVoting() {
+    const result = await openVotingMut.mutateAsync({ election_id: election.id });
+    if (result.status === "ok") {
+      toast.success("Votación abierta");
+    } else {
+      toast.error(result.status);
+    }
+  }
+
+  async function handleClose() {
+    const result = await closeMut.mutateAsync(election.id);
+    const messages: Record<string, string> = {
+      closed: "Elección cerrada. ¡Hay presidente!",
+      segunda_vuelta: "Paso argentino aplicado. Segunda vuelta abierta.",
+      unauthorized: "Sin permisos",
+      not_in_voting_state: "La elección no está en estado de votación",
+      election_not_found: "Elección no encontrada",
+    };
+    if (result.status === "closed" || result.status === "segunda_vuelta") {
+      toast.success(messages[result.status]);
+    } else {
+      toast.error(messages[result.status] ?? result.status);
+    }
+  }
+
+  const totalVotes = Object.values(voteCounts as VoteCounts).reduce((a, b) => a + b, 0);
+
+  // Sorted candidates by votes desc
+  const sorted = [...candidates].sort(
+    (a, b) => ((voteCounts as VoteCounts)[b.id] ?? 0) - ((voteCounts as VoteCounts)[a.id] ?? 0)
+  );
+
+  return (
+    <div className="border rounded-xl p-5 space-y-4 bg-white shadow-sm">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="space-y-1">
+          <h2 className="font-bold text-lg text-zinc-900">{election.titulo}</h2>
+          <span className="inline-flex text-sm px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600">
+            {STATUS_LABEL[election.estado]}
+          </span>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {election.estado === "postulacion" && (
+            <Button
+              size="sm"
+              onClick={handleOpenVoting}
+              disabled={openVotingMut.isPending}
+            >
+              <Vote size={14} className="mr-1" />
+              Abrir votación
+            </Button>
+          )}
+          {(election.estado === "votacion" || election.estado === "segunda_vuelta") && (
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={handleClose}
+              disabled={closeMut.isPending}
+            >
+              <Check size={14} className="mr-1" />
+              Cerrar y calcular ganador
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Paso argentino explanation */}
+      {(election.estado === "votacion" || election.estado === "segunda_vuelta") && (
+        <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-700 flex gap-2">
+          <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium">Reglas de cierre</p>
+            <ul className="mt-1 space-y-0.5 text-xs">
+              <li>• Si el 1er candidato tiene 3+ votos de ventaja sobre el 2do → gana directamente.</li>
+              <li>• Si no → se eliminan todos excepto los 3 más votados (paso argentino) y se abre segunda vuelta.</li>
+              <li>• En segunda vuelta → gana el más votado sin importar diferencia.</li>
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {/* Vote counts summary */}
+      {totalVotes > 0 && (
+        <p className="text-sm text-zinc-500">
+          Total de votos registrados (ronda {currentRound}): <strong>{totalVotes}</strong>
+        </p>
+      )}
+
+      {/* Candidates */}
+      <div className="space-y-2">
+        <p className="text-sm font-medium text-zinc-600">
+          Candidatos ({candidates.length})
+        </p>
+        {sorted.length === 0 ? (
+          <p className="text-sm text-zinc-400">Todavía no hay postulados.</p>
+        ) : (
+          sorted.map((c) => (
+            <CandidateRow
+              key={c.id}
+              candidate={c}
+              votos={(voteCounts as VoteCounts)[c.id] ?? 0}
+            />
+          ))
+        )}
+      </div>
+
+      {/* Timestamps */}
+      <div className="text-xs text-zinc-400 space-y-0.5 border-t pt-3">
+        <p>Postulaciones: {new Date(election.postulacion_abre).toLocaleString("es-AR")} → {new Date(election.postulacion_cierra).toLocaleString("es-AR")}</p>
+        {election.votacion_abre && (
+          <p>Votación: {new Date(election.votacion_abre).toLocaleString("es-AR")} → {election.votacion_cierra ? new Date(election.votacion_cierra).toLocaleString("es-AR") : "—"}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main page ─────────────────────────────────────────────────────────────────
+
+const EleccionAdmin = () => {
+  const { data: elections = [], isLoading } = useElections();
+  const createMut = useCreateElection();
+
+  const [showForm, setShowForm] = useState(false);
+  const [titulo, setTitulo] = useState("");
+  const [postulacionAbre, setPostulacionAbre] = useState(
+    () => new Date().toISOString().slice(0, 16)
+  );
+
+  async function handleCreate() {
+    if (!titulo.trim()) {
+      toast.error("Ingresá un título para la elección");
+      return;
+    }
+    const result = await createMut.mutateAsync({
+      titulo,
+      postulacion_abre: new Date(postulacionAbre).toISOString(),
+    });
+    if (result.status === "ok") {
+      toast.success("Elección creada");
+      setTitulo("");
+      setShowForm(false);
+    } else {
+      toast.error(result.status);
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="w-8 h-8 rounded-full border-2 border-green-500 border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 max-w-2xl mx-auto">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Crown className="text-amber-500 w-6 h-6" />
+          <h1 className="text-xl font-bold text-zinc-900">Elecciones</h1>
+        </div>
+        <Button size="sm" onClick={() => setShowForm((s) => !s)}>
+          <Plus size={14} className="mr-1" />
+          Nueva elección
+        </Button>
+      </div>
+
+      {showForm && (
+        <div className="border rounded-xl p-5 space-y-4 bg-white shadow-sm">
+          <h2 className="font-semibold text-zinc-800">Nueva elección</h2>
+          <div className="space-y-2">
+            <Label htmlFor="titulo">Título</Label>
+            <Input
+              id="titulo"
+              placeholder="Ej: Elección Presidencial 2026"
+              value={titulo}
+              onChange={(e) => setTitulo(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="fecha-abre">Inicio de postulaciones</Label>
+            <Input
+              id="fecha-abre"
+              type="datetime-local"
+              value={postulacionAbre}
+              onChange={(e) => setPostulacionAbre(e.target.value)}
+            />
+            <p className="text-xs text-zinc-400">
+              Las postulaciones cierran automáticamente 24hs después.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleCreate}
+              disabled={createMut.isPending}
+              className="flex-1"
+            >
+              {createMut.isPending ? "Creando..." : "Crear elección"}
+            </Button>
+            <Button variant="outline" onClick={() => setShowForm(false)}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {elections.length === 0 ? (
+        <p className="text-sm text-zinc-400">No hay elecciones todavía.</p>
+      ) : (
+        <div className="space-y-4">
+          {elections.map((e) => (
+            <ElectionPanel key={e.id} election={e} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default EleccionAdmin;
