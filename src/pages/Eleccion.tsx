@@ -91,63 +91,91 @@ function CandidateCard({
   showVoteButton: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const presName = candidate.players.apodo ?? candidate.players.nombre;
+  const viceName = candidate.vice ? (candidate.vice.apodo ?? candidate.vice.nombre) : null;
 
   return (
     <div
-      className={`rounded-xl border overflow-hidden transition-colors bg-card ${
-        selected ? "border-primary ring-1 ring-primary" : "border-border"
+      className={`rounded-2xl border overflow-hidden transition-all bg-card ${
+        selected ? "border-primary ring-2 ring-primary" : "border-border"
       } ${candidate.eliminado ? "opacity-50" : ""}`}
     >
-      {candidate.flyer_url && (
-        <div className="w-full" style={{ aspectRatio: "3/4", maxHeight: "420px" }}>
+      {/* Flyer a ancho completo */}
+      {candidate.flyer_url ? (
+        <div className="w-full relative">
           <img
             src={candidate.flyer_url}
             alt={`Flyer de ${candidate.partido_politico}`}
-            className="w-full h-full object-cover"
-            style={{ display: "block" }}
+            className="w-full object-cover block"
+            style={{ aspectRatio: "3/4", maxHeight: "480px", objectPosition: "top" }}
           />
+          {/* Overlay con votos si hay alguno */}
+          {votos > 0 && (
+            <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1 text-white font-bold text-sm">
+              {votos} {votos === 1 ? "voto" : "votos"}
+            </div>
+          )}
         </div>
-      )}
-
-      <div className="p-4 space-y-3">
-        <div className="flex items-start gap-3">
-          <div className="flex flex-col items-center gap-1 shrink-0">
-            <PlayerAvatar
-              nombre={candidate.players.nombre}
-              foto_url={candidate.players.foto_url}
-              size="md"
-            />
-            <span className="text-xs text-muted-foreground">Pdte.</span>
+      ) : (
+        /* Sin flyer: header visual con avatares */
+        <div className="bg-gradient-card border-b border-border p-5 flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className="flex flex-col items-center gap-1">
+              <PlayerAvatar nombre={candidate.players.nombre} foto_url={candidate.players.foto_url} size="lg" />
+              <span className="text-xs text-muted-foreground">Pdte.</span>
+            </div>
             {candidate.vice && (
               <>
-                <PlayerAvatar
-                  nombre={candidate.vice.nombre}
-                  foto_url={candidate.vice.foto_url}
-                  size="sm"
-                />
-                <span className="text-xs text-muted-foreground">Vice</span>
+                <span className="text-muted-foreground text-lg font-bold">&</span>
+                <div className="flex flex-col items-center gap-1">
+                  <PlayerAvatar nombre={candidate.vice.nombre} foto_url={candidate.vice.foto_url} size="lg" />
+                  <span className="text-xs text-muted-foreground">Vice</span>
+                </div>
               </>
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-semibold truncate">
-              {candidate.players.apodo ?? candidate.players.nombre}
+            <p className="font-black text-xl leading-tight">
+              {presName}{viceName && <><span className="text-muted-foreground font-light"> & </span>{viceName}</>}
             </p>
-            {candidate.vice && (
-              <p className="text-sm text-muted-foreground truncate flex items-center gap-1">
-                <Users size={12} className="shrink-0" />
-                {candidate.vice.apodo ?? candidate.vice.nombre}
-              </p>
-            )}
-            <p className="text-sm text-primary font-medium truncate mt-0.5">
-              {candidate.partido_politico}
-            </p>
+            <p className="text-primary font-semibold text-sm mt-1">{candidate.partido_politico}</p>
           </div>
-          <div className="text-right shrink-0">
-            <span className="text-lg font-bold text-foreground">{votos}</span>
-            <p className="text-xs text-muted-foreground">votos</p>
-          </div>
+          {votos > 0 && (
+            <div className="text-right shrink-0">
+              <span className="text-2xl font-black text-foreground">{votos}</span>
+              <p className="text-xs text-muted-foreground">votos</p>
+            </div>
+          )}
         </div>
+      )}
+
+      <div className="p-4 space-y-3">
+        {/* Info del partido siempre visible debajo del flyer */}
+        {candidate.flyer_url && (
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <PlayerAvatar nombre={candidate.players.nombre} foto_url={candidate.players.foto_url} size="sm" />
+              {candidate.vice && (
+                <>
+                  <span className="text-muted-foreground text-xs">&</span>
+                  <PlayerAvatar nombre={candidate.vice.nombre} foto_url={candidate.vice.foto_url} size="sm" />
+                </>
+              )}
+              <div className="min-w-0">
+                <p className="font-bold text-sm truncate">
+                  {presName}{viceName && <span className="text-muted-foreground font-normal"> & {viceName}</span>}
+                </p>
+                <p className="text-xs text-primary font-medium truncate">{candidate.partido_politico}</p>
+              </div>
+            </div>
+            {votos > 0 && (
+              <div className="text-right shrink-0">
+                <span className="text-lg font-black text-foreground">{votos}</span>
+                <p className="text-xs text-muted-foreground">votos</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {candidate.eliminado && (
           <p className="text-xs text-destructive font-medium">Eliminado (paso argentino)</p>
