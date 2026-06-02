@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Crown, Plus, Vote, ChevronDown, ChevronUp, Check, AlertTriangle, Trash2, BarChart2, Users, UserX, RotateCcw, List, XCircle } from "lucide-react";
+import { Crown, Plus, Vote, ChevronDown, ChevronUp, Check, AlertTriangle, Trash2, BarChart2, Users, UserX, RotateCcw, List, XCircle, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import {
   useElectionVoteCounts,
   useElectionVotesAdmin,
   useElectionVotesDetail,
+  useElectionPendingVoters,
   useNullifyElectionVote,
   useCreateElection,
   useOpenElectionVoting,
@@ -22,6 +23,7 @@ import {
   type CandidateWithPlayer,
   type VoteCounts,
   type VoteDetailRow,
+  type PendingVoterRow,
 } from "@/hooks/useElections";
 
 const PROPOSAL_TOPICS = [
@@ -139,6 +141,39 @@ function CandidateRow({ candidate, votos, electionId }: { candidate: CandidateWi
   );
 }
 
+function PendingVotersList({ voters, totalVoted }: { voters: PendingVoterRow[]; totalVoted: number }) {
+  if (voters.length === 0) {
+    return (
+      <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 text-sm text-primary font-medium">
+        ✅ Todos los jugadores activos ya votaron.
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">
+        {voters.length} jugador{voters.length !== 1 ? "es" : ""} aún no votaron · {totalVoted} voto{totalVoted !== 1 ? "s" : ""} registrado{totalVoted !== 1 ? "s" : ""}
+      </p>
+      <div className="rounded-lg border border-border overflow-hidden">
+        {voters.map((p, i) => (
+          <div
+            key={p.player_id}
+            className={`flex items-center gap-3 px-3 py-2 ${i % 2 === 0 ? "bg-card" : "bg-secondary/30"}`}
+          >
+            <PlayerAvatar nombre={p.nombre} foto_url={p.foto_url} size="sm" />
+            <span className="text-sm font-medium text-foreground">
+              {p.apodo ?? p.nombre}
+            </span>
+            {p.apodo && (
+              <span className="text-xs text-muted-foreground">({p.nombre})</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function VoteDetailTable({
   votes,
   electionId,
@@ -222,11 +257,12 @@ function ElectionPanel({ election }: { election: Election }) {
   const { data: adminVotes = [] } = useElectionVotesAdmin(election.id);
 
   const [showVotes, setShowVotes] = useState(false);
-  const [voteView, setVoteView] = useState<"summary" | "detail">("summary");
+  const [voteView, setVoteView] = useState<"summary" | "detail" | "pending">("summary");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmRevert, setConfirmRevert] = useState(false);
 
   const { data: voteDetails = [] } = useElectionVotesDetail(showVotes && voteView === "detail" ? election.id : null);
+  const { data: pendingVoters = [] } = useElectionPendingVoters(showVotes && voteView === "pending" ? election.id : null, currentRound);
   const nullifyMut = useNullifyElectionVote();
 
   const openVotingMut = useOpenElectionVoting();
@@ -396,7 +432,7 @@ function ElectionPanel({ election }: { election: Election }) {
 
         {showVotes && (
           <div className="space-y-3">
-            {/* Toggle resumen / detalle */}
+            {/* Toggle resumen / detalle / pendientes */}
             <div className="flex gap-1 p-0.5 bg-secondary rounded-lg w-fit">
               <button
                 onClick={() => setVoteView("summary")}
@@ -408,7 +444,13 @@ function ElectionPanel({ election }: { election: Election }) {
                 onClick={() => setVoteView("detail")}
                 className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${voteView === "detail" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
               >
-                <List size={12} /> Detalle individual
+                <List size={12} /> Quién votó
+              </button>
+              <button
+                onClick={() => setVoteView("pending")}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${voteView === "pending" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                <Clock size={12} /> Falta votar
               </button>
             </div>
 
@@ -459,6 +501,10 @@ function ElectionPanel({ election }: { election: Election }) {
                 electionId={election.id}
                 nullifyMut={nullifyMut}
               />
+            )}
+
+            {voteView === "pending" && (
+              <PendingVotersList voters={pendingVoters} totalVoted={totalVotes} />
             )}
           </div>
         )}

@@ -483,6 +483,27 @@ export const useElectionVotesDetail = (electionId: string | null) =>
     },
   });
 
+export type PendingVoterRow = {
+  player_id: string;
+  nombre: string;
+  apodo: string | null;
+  foto_url: string | null;
+};
+
+export const useElectionPendingVoters = (electionId: string | null, round: number = 1) =>
+  useQuery({
+    queryKey: ["election_pending_voters", electionId, round],
+    enabled: !!electionId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_election_pending_voters", {
+        p_election_id: electionId!,
+        p_round: round,
+      });
+      if (error) throw error;
+      return (data ?? []) as PendingVoterRow[];
+    },
+  });
+
 export const useNullifyElectionVote = () => {
   const qc = useQueryClient();
   return useMutation({
