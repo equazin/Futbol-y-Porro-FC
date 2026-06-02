@@ -453,15 +453,31 @@ const Eleccion = () => {
         <header className="rounded-2xl border border-primary/30 bg-gradient-card p-5 shadow-card space-y-3">
           <div className="flex items-center gap-2">
             <Crown className="text-amber-500 w-6 h-6 shrink-0" />
-            <h1 className="text-xl font-black">{election.titulo}</h1>
+            <h1 className="text-xl font-black flex-1">{election.titulo}</h1>
           </div>
-          <StatusBadge estado={election.estado} />
-          {countdown && (
-            <p className="flex items-center gap-1 text-sm text-muted-foreground">
-              <Clock size={14} />
-              {countdown}
-            </p>
-          )}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="space-y-1.5">
+              <StatusBadge estado={election.estado} />
+              {countdown && (
+                <p className="flex items-center gap-1 text-sm text-muted-foreground">
+                  <Clock size={14} />
+                  {countdown}
+                </p>
+              )}
+            </div>
+            {isVotingOpen && step !== "done" && (
+              <Button size="lg" className="font-bold text-base px-6 shrink-0" onClick={() => setStep("identify")}>
+                <Vote size={18} className="mr-2" />
+                Votar
+              </Button>
+            )}
+            {isPostulacionOpen && (
+              <Button variant="outline" size="lg" className="font-bold text-base px-6 shrink-0" onClick={() => setStep("postular")}>
+                <UserCheck size={18} className="mr-2" />
+                Postularme
+              </Button>
+            )}
+          </div>
         </header>
 
         {step === "done" && (
@@ -529,20 +545,6 @@ const Eleccion = () => {
           </div>
         )}
 
-        <div className="flex gap-3">
-          {isPostulacionOpen && (
-            <Button className="flex-1" onClick={() => setStep("postular")}>
-              <UserCheck size={16} className="mr-2" />
-              Postularme
-            </Button>
-          )}
-          {isVotingOpen && step !== "done" && (
-            <Button className="flex-1" onClick={() => setStep("identify")}>
-              <Vote size={16} className="mr-2" />
-              Votar
-            </Button>
-          )}
-        </div>
       </div>
     );
   }
