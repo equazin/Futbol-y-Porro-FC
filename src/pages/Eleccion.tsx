@@ -261,6 +261,10 @@ const Eleccion = () => {
   const [partido, setPartido] = useState("");
   const [flyerUrl, setFlyerUrl] = useState("");
   const [editingCandidateId, setEditingCandidateId] = useState<string | null>(null);
+  // Edit flyer mode: "keep" leaves current image untouched,
+  // "replace" sends the new URL, "clear" removes it.
+  const [editFlyerMode, setEditFlyerMode] = useState<"keep" | "replace" | "clear">("keep");
+  const [editFlyerUrl, setEditFlyerUrl] = useState<string | null>(null);
 
   const updateMemberDni = (idx: number, value: string) =>
     setMemberDnis((arr) => arr.map((v, i) => (i === idx ? value : v)));
@@ -293,6 +297,8 @@ const Eleccion = () => {
     setProposals(filled);
     setMemberDnis([""]);
     setReplaceMembers(false);
+    setEditFlyerMode("keep");
+    setEditFlyerUrl(null);
     setStep("editIdentify");
   }
 
@@ -301,12 +307,18 @@ const Eleccion = () => {
     if (dni.length < 7) { toast.error("Ingresá el DNI"); return; }
     if (!partido.trim()) { toast.error("Ingresá el nombre del partido"); return; }
     const cleanMembers = memberDnis.map((m) => m.trim()).filter((m) => m.length > 0);
+    if (editFlyerMode === "replace" && !editFlyerUrl) {
+      toast.error("Subí una imagen o cancelá el cambio de flyer.");
+      return;
+    }
     const result = await updateMut.mutateAsync({
       candidate_id: editingCandidate.id,
       election_id: election.id,
       dni,
       partido,
       member_dnis: replaceMembers ? cleanMembers : undefined,
+      flyer_url: editFlyerMode === "replace" ? editFlyerUrl : undefined,
+      clear_flyer: editFlyerMode === "clear",
       ...proposals,
     });
     const messages: Record<string, string> = {
@@ -331,6 +343,8 @@ const Eleccion = () => {
       setDni("");
       setMemberDnis([""]);
       setReplaceMembers(false);
+      setEditFlyerMode("keep");
+      setEditFlyerUrl(null);
       setPartido("");
       setProposals(emptyProposals());
     } else {
@@ -771,7 +785,7 @@ const Eleccion = () => {
         </button>
         <h1 className="text-xl font-black">Editar candidatura</h1>
         <p className="text-xs text-muted-foreground">
-          No se pueden cambiar el presidente ni el flyer desde acá. Para eso reabrí la postulación con el admin.
+          No se puede cambiar al presidente desde acá. Para eso reabrí la postulación con el admin.
         </p>
 
         <div className="rounded-xl border border-border bg-card p-4 space-y-4">
@@ -846,6 +860,74 @@ const Eleccion = () => {
                     Cancelar cambio
                   </Button>
                 </div>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2 border-t border-border pt-4">
+            <Label>Flyer / afiche</Label>
+            {editingCandidate.flyer_url ? (
+              <img
+                src={editingCandidate.flyer_url}
+                alt="Flyer actual"
+                className="rounded-lg border border-border max-h-64 w-auto"
+              />
+            ) : (
+              <p className="text-xs text-muted-foreground">No hay flyer cargado.</p>
+            )}
+
+            {editFlyerMode === "keep" && (
+              <div className="flex gap-2 flex-wrap">
+                <Button type="button" variant="outline" size="sm" onClick={() => setEditFlyerMode("replace")}>
+                  {editingCandidate.flyer_url ? "Cambiar flyer" : "Subir flyer"}
+                </Button>
+                {editingCandidate.flyer_url && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => setEditFlyerMode("clear")}
+                  >
+                    Quitar flyer
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {editFlyerMode === "replace" && (
+              <div className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
+                <p className="text-xs text-amber-400">
+                  Al guardar se reemplaza la imagen actual.
+                </p>
+                <FlyerUploader currentUrl={editFlyerUrl} onChange={(url) => setEditFlyerUrl(url)} />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setEditFlyerMode("keep");
+                    setEditFlyerUrl(null);
+                  }}
+                >
+                  Cancelar cambio
+                </Button>
+              </div>
+            )}
+
+            {editFlyerMode === "clear" && (
+              <div className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3">
+                <p className="text-xs text-destructive flex-1">
+                  Al guardar se va a quitar el flyer.
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setEditFlyerMode("keep")}
+                >
+                  Cancelar
+                </Button>
               </div>
             )}
           </div>

@@ -260,6 +260,8 @@ export type UpdateCandidateInput = {
   dni: string;
   partido: string;
   member_dnis?: string[];
+  flyer_url?: string | null;
+  clear_flyer?: boolean;
   propuesta_organizacion?: string;
   propuesta_votacion_premios?: string;
   propuesta_economia?: string;
@@ -284,6 +286,8 @@ export const useUpdateCandidate = () => {
         p_dni: input.dni,
         p_partido: input.partido,
         p_member_dnis: input.member_dnis ?? null,
+        p_flyer_url: input.flyer_url ?? null,
+        p_clear_flyer: input.clear_flyer ?? false,
         p_propuesta_organizacion: input.propuesta_organizacion ?? "",
         p_propuesta_votacion_premios: input.propuesta_votacion_premios ?? "",
         p_propuesta_economia: input.propuesta_economia ?? "",

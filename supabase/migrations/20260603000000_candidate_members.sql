@@ -197,6 +197,18 @@ $$;
 -- ─── update_candidate_by_dni (multi-member version) ────────────────────────
 -- Auth: president only (per latest decision). Replaces member list with
 -- whatever p_member_dnis contains. Pass empty array to clear members.
+-- Flyer: pass p_flyer_url to set, p_clear_flyer=true to remove. Default
+-- is to leave it unchanged.
+
+-- Drop prior signatures so the new one is unambiguous on existing DBs.
+DROP FUNCTION IF EXISTS public.update_candidate_by_dni(
+  uuid, text, text, text, text, text, text, text, text, text,
+  text, text, text, text, text, text
+);
+DROP FUNCTION IF EXISTS public.update_candidate_by_dni(
+  uuid, text, text, text, text, text, text, text, text, text,
+  text, text, text, text, text, text, text[]
+);
 
 CREATE OR REPLACE FUNCTION public.update_candidate_by_dni(
   p_candidate_id uuid,
@@ -215,7 +227,9 @@ CREATE OR REPLACE FUNCTION public.update_candidate_by_dni(
   p_propuesta_presupuesto text DEFAULT '',
   p_propuesta_convivencia2 text DEFAULT '',
   p_propuesta_foules text DEFAULT '',
-  p_member_dnis text[] DEFAULT NULL
+  p_member_dnis text[] DEFAULT NULL,
+  p_flyer_url text DEFAULT NULL,
+  p_clear_flyer boolean DEFAULT false
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -324,7 +338,12 @@ BEGIN
     propuesta_equipos = p_propuesta_equipos,
     propuesta_presupuesto = p_propuesta_presupuesto,
     propuesta_convivencia2 = p_propuesta_convivencia2,
-    propuesta_foules = p_propuesta_foules
+    propuesta_foules = p_propuesta_foules,
+    flyer_url = CASE
+      WHEN p_clear_flyer THEN NULL
+      WHEN p_flyer_url IS NOT NULL THEN p_flyer_url
+      ELSE flyer_url
+    END
   WHERE id = p_candidate_id;
 
   -- Replace member list only if p_member_dnis was provided
@@ -363,5 +382,5 @@ GRANT EXECUTE ON FUNCTION public.update_candidate_by_dni(
   uuid, text, text,
   text, text, text, text, text, text, text,
   text, text, text, text, text, text,
-  text[]
+  text[], text, boolean
 ) TO anon, authenticated;
