@@ -5,19 +5,17 @@ import { Database } from "@/integrations/supabase/types";
 export type Election = Database["public"]["Tables"]["elections"]["Row"];
 export type Candidate = Database["public"]["Tables"]["candidates"]["Row"];
 
+export interface PlayerLite {
+  id: string;
+  nombre: string;
+  apodo: string | null;
+  foto_url: string | null;
+}
+
 export type CandidateWithPlayer = Candidate & {
-  players: {
-    id: string;
-    nombre: string;
-    apodo: string | null;
-    foto_url: string | null;
-  };
-  vice?: {
-    id: string;
-    nombre: string;
-    apodo: string | null;
-    foto_url: string | null;
-  } | null;
+  players: PlayerLite;
+  vice?: PlayerLite | null;
+  members?: PlayerLite[];
   votos?: number;
 };
 
@@ -86,22 +84,51 @@ export const useCandidates = (electionId: string | null) =>
       if (error) throw error;
 
       const rows = (data ?? []) as CandidateWithPlayer[];
+      if (rows.length === 0) return rows;
 
-      // Resolve vice players separately to avoid FK join syntax issues
-      const viceIds = [...new Set(rows.map((r) => r.vice_player_id).filter(Boolean))] as string[];
-      if (viceIds.length > 0) {
-        const { data: vicePlayers } = await supabase
+      const candidateIds = rows.map((r) => r.id);
+
+      // Fetch all members in one round-trip
+      const { data: memberRows } = await (supabase as any)
+        .from("candidate_members")
+        .select("candidate_id, player_id, position")
+        .in("candidate_id", candidateIds)
+        .order("position", { ascending: true });
+
+      const memberPlayerIds = [
+        ...new Set((memberRows ?? []).map((m: { player_id: string }) => m.player_id)),
+      ] as string[];
+
+      const playerIdsToFetch = [
+        ...new Set([
+          ...memberPlayerIds,
+          ...(rows.map((r) => r.vice_player_id).filter(Boolean) as string[]),
+        ]),
+      ];
+
+      const playerMap: Record<string, PlayerLite> = {};
+      if (playerIdsToFetch.length > 0) {
+        const { data: extraPlayers } = await supabase
           .from("players")
           .select("id, nombre, apodo, foto_url")
-          .in("id", viceIds);
-        const viceMap = Object.fromEntries((vicePlayers ?? []).map((p) => [p.id, p]));
-        return rows.map((r) => ({
-          ...r,
-          vice: r.vice_player_id ? (viceMap[r.vice_player_id] ?? null) : null,
-        }));
+          .in("id", playerIdsToFetch);
+        (extraPlayers ?? []).forEach((p) => {
+          playerMap[p.id] = p as PlayerLite;
+        });
       }
 
-      return rows;
+      const membersByCandidate: Record<string, PlayerLite[]> = {};
+      (memberRows ?? []).forEach((row: { candidate_id: string; player_id: string }) => {
+        const player = playerMap[row.player_id];
+        if (!player) return;
+        (membersByCandidate[row.candidate_id] ??= []).push(player);
+      });
+
+      return rows.map((r) => {
+        const members = membersByCandidate[r.id] ?? [];
+        const vice = r.vice_player_id ? (playerMap[r.vice_player_id] ?? null) : null;
+        return { ...r, vice, members };
+      });
     },
   });
 
@@ -176,6 +203,7 @@ export type RegisterCandidateInput = {
   dni: string;
   partido: string;
   vice_dni?: string;
+  member_dnis?: string[];
   flyer_url?: string;
   propuesta_organizacion?: string;
   propuesta_votacion_premios?: string;
@@ -196,11 +224,12 @@ export const useRegisterCandidate = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: RegisterCandidateInput) => {
-      const { data, error } = await supabase.rpc("register_candidate", {
+      const { data, error } = await (supabase as any).rpc("register_candidate", {
         p_election_id: input.election_id,
         p_dni: input.dni,
         p_partido: input.partido,
         p_vice_dni: input.vice_dni ?? null,
+        p_member_dnis: input.member_dnis ?? null,
         p_flyer_url: input.flyer_url ?? null,
         p_propuesta_organizacion: input.propuesta_organizacion ?? "",
         p_propuesta_votacion_premios: input.propuesta_votacion_premios ?? "",
@@ -230,6 +259,7 @@ export type UpdateCandidateInput = {
   election_id: string;
   dni: string;
   partido: string;
+  member_dnis?: string[];
   propuesta_organizacion?: string;
   propuesta_votacion_premios?: string;
   propuesta_economia?: string;
@@ -249,10 +279,11 @@ export const useUpdateCandidate = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: UpdateCandidateInput) => {
-      const { data, error } = await supabase.rpc("update_candidate_by_dni", {
+      const { data, error } = await (supabase as any).rpc("update_candidate_by_dni", {
         p_candidate_id: input.candidate_id,
         p_dni: input.dni,
         p_partido: input.partido,
+        p_member_dnis: input.member_dnis ?? null,
         p_propuesta_organizacion: input.propuesta_organizacion ?? "",
         p_propuesta_votacion_premios: input.propuesta_votacion_premios ?? "",
         p_propuesta_economia: input.propuesta_economia ?? "",

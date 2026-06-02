@@ -95,7 +95,10 @@ function CandidateCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const presName = candidate.players.apodo ?? candidate.players.nombre;
-  const viceName = candidate.vice ? (candidate.vice.apodo ?? candidate.vice.nombre) : null;
+  const members = candidate.members && candidate.members.length > 0
+    ? candidate.members
+    : (candidate.vice ? [candidate.vice] : []);
+  const summaryNames = [presName, ...members.map((m) => m.apodo ?? m.nombre)].join(" · ");
 
   return (
     <div
@@ -121,34 +124,33 @@ function CandidateCard({
         </div>
       ) : (
         /* Sin flyer: header visual con avatares */
-        <div className="bg-gradient-card border-b border-border p-5 flex items-center gap-4">
-          <div className="flex items-center gap-2">
+        <div className="bg-gradient-card border-b border-border p-5 flex flex-col gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <div className="flex flex-col items-center gap-1">
               <PlayerAvatar nombre={candidate.players.nombre} foto_url={candidate.players.foto_url} size="lg" />
               <span className="text-xs text-muted-foreground">Pdte.</span>
             </div>
-            {candidate.vice && (
-              <>
-                <span className="text-muted-foreground text-lg font-bold">&</span>
-                <div className="flex flex-col items-center gap-1">
-                  <PlayerAvatar nombre={candidate.vice.nombre} foto_url={candidate.vice.foto_url} size="lg" />
-                  <span className="text-xs text-muted-foreground">Vice</span>
-                </div>
-              </>
+            {members.map((m) => (
+              <div key={m.id} className="flex flex-col items-center gap-1">
+                <PlayerAvatar nombre={m.nombre} foto_url={m.foto_url} size="md" />
+                <span className="text-[10px] text-muted-foreground truncate max-w-[64px]">
+                  {m.apodo ?? m.nombre}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="font-black text-lg leading-tight">{candidate.partido_politico}</p>
+              <p className="text-muted-foreground text-xs truncate">{summaryNames}</p>
+            </div>
+            {votos > 0 && (
+              <div className="text-right shrink-0">
+                <span className="text-2xl font-black text-foreground">{votos}</span>
+                <p className="text-xs text-muted-foreground">votos</p>
+              </div>
             )}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-black text-xl leading-tight">
-              {presName}{viceName && <><span className="text-muted-foreground font-light"> & </span>{viceName}</>}
-            </p>
-            <p className="text-primary font-semibold text-sm mt-1">{candidate.partido_politico}</p>
-          </div>
-          {votos > 0 && (
-            <div className="text-right shrink-0">
-              <span className="text-2xl font-black text-foreground">{votos}</span>
-              <p className="text-xs text-muted-foreground">votos</p>
-            </div>
-          )}
         </div>
       )}
 
@@ -158,17 +160,12 @@ function CandidateCard({
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <PlayerAvatar nombre={candidate.players.nombre} foto_url={candidate.players.foto_url} size="sm" />
-              {candidate.vice && (
-                <>
-                  <span className="text-muted-foreground text-xs">&</span>
-                  <PlayerAvatar nombre={candidate.vice.nombre} foto_url={candidate.vice.foto_url} size="sm" />
-                </>
-              )}
+              {members.map((m) => (
+                <PlayerAvatar key={m.id} nombre={m.nombre} foto_url={m.foto_url} size="sm" />
+              ))}
               <div className="min-w-0">
-                <p className="font-bold text-sm truncate">
-                  {presName}{viceName && <span className="text-muted-foreground font-normal"> & {viceName}</span>}
-                </p>
-                <p className="text-xs text-primary font-medium truncate">{candidate.partido_politico}</p>
+                <p className="font-bold text-sm truncate">{candidate.partido_politico}</p>
+                <p className="text-xs text-muted-foreground truncate">{summaryNames}</p>
               </div>
             </div>
             {votos > 0 && (
@@ -257,12 +254,19 @@ const Eleccion = () => {
 
   const [step, setStep] = useState<Step>("overview");
   const [dni, setDni] = useState("");
-  const [viceDni, setViceDni] = useState("");
+  const [memberDnis, setMemberDnis] = useState<string[]>([""]);
+  const [replaceMembers, setReplaceMembers] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<string | null>(null);
   const [proposals, setProposals] = useState<ProposalForm>(emptyProposals);
   const [partido, setPartido] = useState("");
   const [flyerUrl, setFlyerUrl] = useState("");
   const [editingCandidateId, setEditingCandidateId] = useState<string | null>(null);
+
+  const updateMemberDni = (idx: number, value: string) =>
+    setMemberDnis((arr) => arr.map((v, i) => (i === idx ? value : v)));
+  const addMember = () => setMemberDnis((arr) => [...arr, ""]);
+  const removeMember = (idx: number) =>
+    setMemberDnis((arr) => (arr.length === 1 ? [""] : arr.filter((_, i) => i !== idx)));
 
   const { data: alreadyVoted } = useHasVotedElection(election?.id ?? null, dni, currentRound);
 
@@ -287,6 +291,8 @@ const Eleccion = () => {
       filled[t.key as ProposalKey] = v ?? "";
     });
     setProposals(filled);
+    setMemberDnis([""]);
+    setReplaceMembers(false);
     setStep("editIdentify");
   }
 
@@ -294,11 +300,13 @@ const Eleccion = () => {
     if (!election || !editingCandidate) return;
     if (dni.length < 7) { toast.error("Ingresá el DNI"); return; }
     if (!partido.trim()) { toast.error("Ingresá el nombre del partido"); return; }
+    const cleanMembers = memberDnis.map((m) => m.trim()).filter((m) => m.length > 0);
     const result = await updateMut.mutateAsync({
       candidate_id: editingCandidate.id,
       election_id: election.id,
       dni,
       partido,
+      member_dnis: replaceMembers ? cleanMembers : undefined,
       ...proposals,
     });
     const messages: Record<string, string> = {
@@ -306,16 +314,23 @@ const Eleccion = () => {
       invalid_dni: "DNI inválido",
       dni_not_found: "Tu DNI no está registrado",
       not_found: "Candidatura no encontrada",
-      unauthorized: "Ese DNI no es del presidente ni del vice de esta candidatura",
+      unauthorized: "Ese DNI no es del presidente de esta candidatura",
       election_not_found: "Elección no encontrada",
       postulacion_closed: "Ya no se puede editar (postulaciones cerradas)",
       missing_partido: "Ingresá el nombre del partido",
+      invalid_member_dni: "Hay un DNI de integrante inválido",
+      member_dni_not_found: "Hay un DNI de integrante que no está registrado",
+      member_same_as_president: "Un integrante no puede ser el presidente",
+      duplicate_member: "Hay integrantes duplicados",
+      member_already_candidate: "Un integrante ya está postulado en otra candidatura",
     };
     if (result.status === "ok") {
       toast.success(messages.ok);
       setStep("overview");
       setEditingCandidateId(null);
       setDni("");
+      setMemberDnis([""]);
+      setReplaceMembers(false);
       setPartido("");
       setProposals(emptyProposals());
     } else {
@@ -338,11 +353,12 @@ const Eleccion = () => {
     if (!election) return;
     if (!partido.trim()) { toast.error("Ingresá el nombre de tu partido político"); return; }
     if (dni.length < 7) { toast.error("Ingresá tu DNI"); return; }
+    const cleanMembers = memberDnis.map((m) => m.trim()).filter((m) => m.length > 0);
     const result = await registerMut.mutateAsync({
       election_id: election.id,
       dni,
       partido,
-      vice_dni: viceDni.trim() || undefined,
+      member_dnis: cleanMembers.length > 0 ? cleanMembers : undefined,
       flyer_url: flyerUrl.trim() || undefined,
       ...proposals,
     });
@@ -350,10 +366,11 @@ const Eleccion = () => {
       ok: "¡Te postulaste exitosamente!",
       invalid_dni: "DNI inválido",
       dni_not_found: "Tu DNI no está registrado en el sistema",
-      invalid_vice_dni: "DNI del vice inválido",
-      vice_dni_not_found: "El DNI del vice no está registrado",
-      vice_same_as_president: "El vice no puede ser el mismo que el presidente",
-      vice_already_candidate: "El vice ya está postulado como presidente",
+      invalid_member_dni: "Hay un DNI de integrante inválido",
+      member_dni_not_found: "Hay un DNI de integrante que no está registrado",
+      member_same_as_president: "Un integrante no puede ser el mismo presidente",
+      duplicate_member: "Hay integrantes duplicados",
+      member_already_candidate: "Un integrante ya está postulado en otra candidatura",
       postulacion_closed: "Las postulaciones ya cerraron",
       window_closed: "La ventana de postulación no está abierta",
       already_registered: "Ya estás postulado en esta elección",
@@ -363,7 +380,7 @@ const Eleccion = () => {
       toast.success(messages.ok);
       setStep("overview");
       setDni("");
-      setViceDni("");
+      setMemberDnis([""]);
       setPartido("");
       setFlyerUrl("");
       setProposals(emptyProposals());
@@ -538,10 +555,33 @@ const Eleccion = () => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="vice-dni">
-              DNI del vice <span className="text-muted-foreground font-normal">(opcional)</span>
+            <Label>
+              Integrantes del partido <span className="text-muted-foreground font-normal">(opcional, DNIs)</span>
             </Label>
-            <Input id="vice-dni" type="password" placeholder="DNI del vice presidente" value={viceDni} onChange={(e) => setViceDni(e.target.value)} autoComplete="off" />
+            <p className="text-xs text-muted-foreground">
+              Agregá los DNIs de los demás integrantes. Cada uno tiene que estar registrado como jugador.
+            </p>
+            <div className="space-y-2">
+              {memberDnis.map((value, idx) => (
+                <div key={idx} className="flex gap-2">
+                  <Input
+                    type="password"
+                    placeholder={`DNI integrante ${idx + 1}`}
+                    value={value}
+                    onChange={(e) => updateMemberDni(idx, e.target.value)}
+                    autoComplete="off"
+                  />
+                  {memberDnis.length > 1 && (
+                    <Button type="button" variant="outline" size="sm" onClick={() => removeMember(idx)}>
+                      Quitar
+                    </Button>
+                  )}
+                </div>
+              ))}
+              <Button type="button" variant="outline" size="sm" onClick={addMember}>
+                + Agregar integrante
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -672,7 +712,10 @@ const Eleccion = () => {
 
   if (step === "editIdentify" && editingCandidate) {
     const presName = editingCandidate.players.apodo ?? editingCandidate.players.nombre;
-    const viceName = editingCandidate.vice ? (editingCandidate.vice.apodo ?? editingCandidate.vice.nombre) : null;
+    const editMembers = editingCandidate.members && editingCandidate.members.length > 0
+      ? editingCandidate.members
+      : (editingCandidate.vice ? [editingCandidate.vice] : []);
+    const summary = [presName, ...editMembers.map((m) => m.apodo ?? m.nombre)].join(" · ");
     return (
       <div className="max-w-md mx-auto px-4 py-10 space-y-6">
         <button
@@ -687,14 +730,12 @@ const Eleccion = () => {
         </button>
         <h1 className="text-xl font-black">Editar candidatura</h1>
         <div className="rounded-xl border border-border bg-card p-4 space-y-1">
-          <p className="text-sm text-muted-foreground">Fórmula</p>
-          <p className="font-semibold">
-            {presName}{viceName && <span className="text-muted-foreground font-normal"> & {viceName}</span>}
-          </p>
-          <p className="text-sm text-primary">{editingCandidate.partido_politico}</p>
+          <p className="text-sm text-muted-foreground">Partido</p>
+          <p className="font-semibold text-primary">{editingCandidate.partido_politico}</p>
+          <p className="text-sm text-muted-foreground">{summary}</p>
         </div>
         <p className="text-sm text-muted-foreground">
-          Ingresá tu DNI (el del presidente o el del vice) para confirmar tu identidad.
+          Ingresá tu DNI de presidente para confirmar tu identidad.
         </p>
         <div className="space-y-2">
           <Label htmlFor="edit-dni">DNI</Label>
@@ -717,6 +758,9 @@ const Eleccion = () => {
   // ── Edit: formulario ─────────────────────────────────────────────────────────
 
   if (step === "edit" && editingCandidate) {
+    const currentMembers = editingCandidate.members && editingCandidate.members.length > 0
+      ? editingCandidate.members
+      : (editingCandidate.vice ? [editingCandidate.vice] : []);
     return (
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
         <button
@@ -727,7 +771,7 @@ const Eleccion = () => {
         </button>
         <h1 className="text-xl font-black">Editar candidatura</h1>
         <p className="text-xs text-muted-foreground">
-          No se pueden cambiar el presidente, el vice ni el flyer desde acá. Para eso reabrí la postulación con el admin.
+          No se pueden cambiar el presidente ni el flyer desde acá. Para eso reabrí la postulación con el admin.
         </p>
 
         <div className="rounded-xl border border-border bg-card p-4 space-y-4">
@@ -739,6 +783,71 @@ const Eleccion = () => {
               value={partido}
               onChange={(e) => setPartido(e.target.value)}
             />
+          </div>
+
+          <div className="space-y-2 border-t border-border pt-4">
+            <Label>Integrantes actuales</Label>
+            {currentMembers.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No hay otros integrantes cargados.</p>
+            ) : (
+              <ul className="text-sm space-y-1">
+                {currentMembers.map((m) => (
+                  <li key={m.id} className="text-muted-foreground">• {m.apodo ?? m.nombre}</li>
+                ))}
+              </ul>
+            )}
+
+            {!replaceMembers ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setReplaceMembers(true);
+                  setMemberDnis([""]);
+                }}
+              >
+                Cambiar integrantes
+              </Button>
+            ) : (
+              <div className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
+                <p className="text-xs text-amber-400">
+                  Al guardar se reemplaza la lista entera. Volvé a cargar los DNIs de todos los integrantes que quieras dejar (o dejala vacía para no tener ninguno).
+                </p>
+                {memberDnis.map((value, idx) => (
+                  <div key={idx} className="flex gap-2">
+                    <Input
+                      type="password"
+                      placeholder={`DNI integrante ${idx + 1}`}
+                      value={value}
+                      onChange={(e) => updateMemberDni(idx, e.target.value)}
+                      autoComplete="off"
+                    />
+                    {memberDnis.length > 1 && (
+                      <Button type="button" variant="outline" size="sm" onClick={() => removeMember(idx)}>
+                        Quitar
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={addMember}>
+                    + Agregar
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setReplaceMembers(false);
+                      setMemberDnis([""]);
+                    }}
+                  >
+                    Cancelar cambio
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
