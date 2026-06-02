@@ -458,3 +458,45 @@ export const useElectionVotesAdmin = (electionId: string | null) =>
       return (data ?? []) as AdminVoteRow[];
     },
   });
+
+export type VoteDetailRow = {
+  vote_id: string;
+  round: number;
+  candidate_id: string;
+  candidate_partido: string;
+  voter_player_id: string | null;
+  voter_nombre: string | null;
+  voter_apodo: string | null;
+  voted_at: string;
+};
+
+export const useElectionVotesDetail = (electionId: string | null) =>
+  useQuery({
+    queryKey: ["election_votes_detail", electionId],
+    enabled: !!electionId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_election_votes_detail", {
+        p_election_id: electionId!,
+      });
+      if (error) throw error;
+      return (data ?? []) as VoteDetailRow[];
+    },
+  });
+
+export const useNullifyElectionVote = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ vote_id, election_id }: { vote_id: string; election_id: string }) => {
+      const { data, error } = await (supabase as any).rpc("nullify_election_vote", {
+        p_vote_id: vote_id,
+      });
+      if (error) throw error;
+      return data as { status: string };
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["election_votes_detail", vars.election_id] });
+      qc.invalidateQueries({ queryKey: ["election_votes_admin", vars.election_id] });
+      qc.invalidateQueries({ queryKey: ["election_vote_counts", vars.election_id] });
+    },
+  });
+};

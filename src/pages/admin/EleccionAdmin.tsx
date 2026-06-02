@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Crown, Plus, Vote, ChevronDown, ChevronUp, Check, AlertTriangle, Trash2, BarChart2, Users, UserX, RotateCcw } from "lucide-react";
+import { Crown, Plus, Vote, ChevronDown, ChevronUp, Check, AlertTriangle, Trash2, BarChart2, Users, UserX, RotateCcw, List, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,8 @@ import {
   useCandidates,
   useElectionVoteCounts,
   useElectionVotesAdmin,
+  useElectionVotesDetail,
+  useNullifyElectionVote,
   useCreateElection,
   useOpenElectionVoting,
   useCloseElectionVoting,
@@ -19,6 +21,7 @@ import {
   type Election,
   type CandidateWithPlayer,
   type VoteCounts,
+  type VoteDetailRow,
 } from "@/hooks/useElections";
 
 const PROPOSAL_TOPICS = [
@@ -136,6 +139,82 @@ function CandidateRow({ candidate, votos, electionId }: { candidate: CandidateWi
   );
 }
 
+function VoteDetailTable({
+  votes,
+  electionId,
+  nullifyMut,
+}: {
+  votes: VoteDetailRow[];
+  electionId: string;
+  nullifyMut: ReturnType<typeof useNullifyElectionVote>;
+}) {
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+
+  if (votes.length === 0) {
+    return <p className="text-sm text-muted-foreground">No hay votos registrados.</p>;
+  }
+
+  const rounds = [...new Set(votes.map((v) => v.round))].sort();
+
+  async function handleNullify(voteId: string) {
+    const result = await nullifyMut.mutateAsync({ vote_id: voteId, election_id: electionId });
+    if (result.status === "ok") { toast.success("Voto anulado"); setConfirmId(null); }
+    else toast.error(result.status);
+  }
+
+  return (
+    <div className="space-y-4">
+      {rounds.map((round) => {
+        const roundVotes = votes.filter((v) => v.round === round);
+        return (
+          <div key={round} className="space-y-1.5">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Ronda {round} — {roundVotes.length} votos
+            </p>
+            <div className="rounded-lg border border-border overflow-hidden">
+              {roundVotes.map((v, i) => (
+                <div
+                  key={v.vote_id}
+                  className={`flex items-center gap-3 px-3 py-2 text-sm ${i % 2 === 0 ? "bg-card" : "bg-secondary/30"}`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium text-foreground">
+                      {v.voter_apodo ?? v.voter_nombre ?? <span className="text-muted-foreground italic">Anónimo</span>}
+                    </span>
+                    <span className="text-muted-foreground mx-1.5">→</span>
+                    <span className="text-primary">{v.candidate_partido}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {new Date(v.voted_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                  {confirmId === v.vote_id ? (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button size="sm" variant="destructive" onClick={() => handleNullify(v.vote_id)} disabled={nullifyMut.isPending} className="h-6 text-xs px-2">
+                        Anular
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setConfirmId(null)} className="h-6 text-xs px-2">
+                        No
+                      </Button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmId(v.vote_id)}
+                      className="shrink-0 p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                      title="Anular este voto"
+                    >
+                      <XCircle size={14} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function ElectionPanel({ election }: { election: Election }) {
   const { data: candidates = [] } = useCandidates(election.id);
   const currentRound = election.estado === "segunda_vuelta" ? 2 : 1;
@@ -143,8 +222,12 @@ function ElectionPanel({ election }: { election: Election }) {
   const { data: adminVotes = [] } = useElectionVotesAdmin(election.id);
 
   const [showVotes, setShowVotes] = useState(false);
+  const [voteView, setVoteView] = useState<"summary" | "detail">("summary");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmRevert, setConfirmRevert] = useState(false);
+
+  const { data: voteDetails = [] } = useElectionVotesDetail(showVotes && voteView === "detail" ? election.id : null);
+  const nullifyMut = useNullifyElectionVote();
 
   const openVotingMut = useOpenElectionVoting();
   const closeMut = useCloseElectionVoting();
@@ -312,51 +395,70 @@ function ElectionPanel({ election }: { election: Election }) {
         </button>
 
         {showVotes && (
-          <div className="space-y-4">
-            {adminVotes.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No hay votos registrados.</p>
-            ) : (
-              rounds.map((round) => {
-                const roundVotes = adminVotes.filter((v) => v.round === round);
-                const roundTotal = roundVotes.reduce((a, v) => a + v.votos, 0);
-                return (
-                  <div key={round} className="space-y-2">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      Ronda {round} — {roundTotal} votos
-                    </p>
-                    {roundVotes
-                      .sort((a, b) => b.votos - a.votos)
-                      .map((v) => {
-                        const cand = candidates.find((c) => c.id === v.candidate_id);
-                        const pct = roundTotal > 0 ? Math.round((v.votos / roundTotal) * 100) : 0;
-                        return (
-                          <div key={v.candidate_id} className="space-y-1">
-                            <div className="flex items-center justify-between text-sm">
-                              <div className="flex items-center gap-2 min-w-0">
-                                {cand && (
-                                  <PlayerAvatar nombre={cand.players.nombre} foto_url={cand.players.foto_url} size="sm" />
-                                )}
-                                <span className="truncate font-medium">
-                                  {cand ? (cand.players.apodo ?? cand.players.nombre) : v.candidate_id.slice(0, 8)}
-                                </span>
-                                {cand?.eliminado && (
-                                  <span className="text-xs text-destructive shrink-0">eliminado</span>
-                                )}
+          <div className="space-y-3">
+            {/* Toggle resumen / detalle */}
+            <div className="flex gap-1 p-0.5 bg-secondary rounded-lg w-fit">
+              <button
+                onClick={() => setVoteView("summary")}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${voteView === "summary" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                <BarChart2 size={12} /> Resumen
+              </button>
+              <button
+                onClick={() => setVoteView("detail")}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${voteView === "detail" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                <List size={12} /> Detalle individual
+              </button>
+            </div>
+
+            {voteView === "summary" && (
+              <div className="space-y-4">
+                {adminVotes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No hay votos registrados.</p>
+                ) : (
+                  rounds.map((round) => {
+                    const roundVotes = adminVotes.filter((v) => v.round === round);
+                    const roundTotal = roundVotes.reduce((a, v) => a + v.votos, 0);
+                    return (
+                      <div key={round} className="space-y-2">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                          Ronda {round} — {roundTotal} votos
+                        </p>
+                        {roundVotes.sort((a, b) => b.votos - a.votos).map((v) => {
+                          const cand = candidates.find((c) => c.id === v.candidate_id);
+                          const pct = roundTotal > 0 ? Math.round((v.votos / roundTotal) * 100) : 0;
+                          return (
+                            <div key={v.candidate_id} className="space-y-1">
+                              <div className="flex items-center justify-between text-sm">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  {cand && <PlayerAvatar nombre={cand.players.nombre} foto_url={cand.players.foto_url} size="sm" />}
+                                  <span className="truncate font-medium">
+                                    {cand ? (cand.players.apodo ?? cand.players.nombre) : v.candidate_id.slice(0, 8)}
+                                  </span>
+                                  {cand?.eliminado && <span className="text-xs text-destructive shrink-0">eliminado</span>}
+                                </div>
+                                <span className="shrink-0 font-bold ml-2">{v.votos} <span className="text-muted-foreground font-normal text-xs">({pct}%)</span></span>
                               </div>
-                              <span className="shrink-0 font-bold ml-2">{v.votos} <span className="text-muted-foreground font-normal text-xs">({pct}%)</span></span>
+                              <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+                                <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+                              </div>
                             </div>
-                            <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
-                              <div
-                                className="h-full rounded-full bg-primary transition-all"
-                                style={{ width: `${pct}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                );
-              })
+                          );
+                        })}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+
+            {voteView === "detail" && (
+              <VoteDetailTable
+                votes={voteDetails}
+                electionId={election.id}
+                nullifyMut={nullifyMut}
+              />
             )}
           </div>
         )}
