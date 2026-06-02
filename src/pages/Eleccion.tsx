@@ -84,6 +84,7 @@ function CandidateCard({
   selected,
   onSelect,
   showVoteButton,
+  showVotos = false,
   onEdit,
 }: {
   candidate: CandidateWithPlayer;
@@ -91,6 +92,7 @@ function CandidateCard({
   selected: boolean;
   onSelect?: () => void;
   showVoteButton: boolean;
+  showVotos?: boolean;
   onEdit?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -115,8 +117,7 @@ function CandidateCard({
             className="w-full block"
             style={{ display: "block" }}
           />
-          {/* Overlay con votos si hay alguno */}
-          {votos > 0 && (
+          {showVotos && votos > 0 && (
             <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1 text-white font-bold text-sm">
               {votos} {votos === 1 ? "voto" : "votos"}
             </div>
@@ -144,7 +145,7 @@ function CandidateCard({
               <p className="font-black text-lg leading-tight">{candidate.partido_politico}</p>
               <p className="text-muted-foreground text-xs truncate">{summaryNames}</p>
             </div>
-            {votos > 0 && (
+            {showVotos && votos > 0 && (
               <div className="text-right shrink-0">
                 <span className="text-2xl font-black text-foreground">{votos}</span>
                 <p className="text-xs text-muted-foreground">votos</p>
@@ -168,7 +169,7 @@ function CandidateCard({
                 <p className="text-xs text-muted-foreground truncate">{summaryNames}</p>
               </div>
             </div>
-            {votos > 0 && (
+            {showVotos && votos > 0 && (
               <div className="text-right shrink-0">
                 <span className="text-lg font-black text-foreground">{votos}</span>
                 <p className="text-xs text-muted-foreground">votos</p>
