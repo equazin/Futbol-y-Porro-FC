@@ -333,6 +333,26 @@ export const useOpenElectionVoting = () => {
   });
 };
 
+export const useRevertElectionToPostulacion = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (election_id: string) => {
+      const { data, error } = await supabase.rpc("revert_election_to_postulacion", {
+        p_election_id: election_id,
+      });
+      if (error) throw error;
+      return data as { status: string; deleted_votes?: number };
+    },
+    onSuccess: (_data, election_id) => {
+      qc.invalidateQueries({ queryKey: ["elections"] });
+      qc.invalidateQueries({ queryKey: ["candidates", election_id] });
+      qc.invalidateQueries({ queryKey: ["election_vote_counts", election_id] });
+      qc.invalidateQueries({ queryKey: ["election_votes_admin", election_id] });
+      qc.invalidateQueries({ queryKey: ["has_voted_election", election_id] });
+    },
+  });
+};
+
 export const useCloseElectionVoting = () => {
   const qc = useQueryClient();
   return useMutation({

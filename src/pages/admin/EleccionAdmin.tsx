@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Crown, Plus, Vote, ChevronDown, ChevronUp, Check, AlertTriangle, Trash2, BarChart2, Users, UserX } from "lucide-react";
+import { Crown, Plus, Vote, ChevronDown, ChevronUp, Check, AlertTriangle, Trash2, BarChart2, Users, UserX, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import {
   useCreateElection,
   useOpenElectionVoting,
   useCloseElectionVoting,
+  useRevertElectionToPostulacion,
   useDeleteElection,
   useDeleteCandidate,
   type Election,
@@ -143,9 +144,11 @@ function ElectionPanel({ election }: { election: Election }) {
 
   const [showVotes, setShowVotes] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmRevert, setConfirmRevert] = useState(false);
 
   const openVotingMut = useOpenElectionVoting();
   const closeMut = useCloseElectionVoting();
+  const revertMut = useRevertElectionToPostulacion();
   const deleteMut = useDeleteElection();
 
   async function handleOpenVoting() {
@@ -172,6 +175,26 @@ function ElectionPanel({ election }: { election: Election }) {
     const result = await deleteMut.mutateAsync(election.id);
     if (result.status === "ok") toast.success("Elección borrada");
     else toast.error(result.status);
+  }
+
+  async function handleRevert() {
+    const result = await revertMut.mutateAsync(election.id);
+    if (result.status === "ok") {
+      const n = result.deleted_votes ?? 0;
+      toast.success(
+        n > 0
+          ? `Volviste a postulación. Se borraron ${n} ${n === 1 ? "voto" : "votos"}.`
+          : "Volviste a postulación. No había votos.",
+      );
+      setConfirmRevert(false);
+    } else {
+      const messages: Record<string, string> = {
+        unauthorized: "Sin permisos",
+        election_not_found: "Elección no encontrada",
+        not_in_voting_state: "Solo se puede volver desde 'votación'",
+      };
+      toast.error(messages[result.status] ?? result.status);
+    }
   }
 
   const totalVotes = Object.values(voteCounts as VoteCounts).reduce((a, b) => a + b, 0);
@@ -204,6 +227,31 @@ function ElectionPanel({ election }: { election: Election }) {
               <Check size={14} className="mr-1" />
               Cerrar y calcular ganador
             </Button>
+          )}
+          {election.estado === "votacion" && (
+            !confirmRevert ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setConfirmRevert(true)}
+                disabled={revertMut.isPending}
+              >
+                <RotateCcw size={14} className="mr-1" />
+                Volver a postulación
+              </Button>
+            ) : (
+              <div className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5">
+                <span className="text-xs text-amber-400 font-medium">
+                  ¿Volver? Se borran los votos de esta ronda.
+                </span>
+                <Button size="sm" variant="default" onClick={handleRevert} disabled={revertMut.isPending} className="h-6 text-xs px-2">
+                  Sí, volver
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setConfirmRevert(false)} className="h-6 text-xs px-2">
+                  Cancelar
+                </Button>
+              </div>
+            )
           )}
           {/* Delete button */}
           {!confirmDelete ? (
